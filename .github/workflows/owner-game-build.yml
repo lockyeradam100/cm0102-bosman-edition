@@ -15,11 +15,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake \
-            mingw-w64 \
-            p7zip-full \
-            python3-venv \
-            curl
+  cmake \
+  mingw-w64 \
+  p7zip-full \
+  python3-venv \
+  nsis \
+  curl
 
       - name: Install Python Capstone
         run: |
