@@ -2,6 +2,9 @@ name: Owner Game Windows Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - owner-game-live-bridge
 
 jobs:
   build-windows:
