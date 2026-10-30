@@ -1,0 +1,92 @@
+name: Owner Game Mac Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-live-bridge
+
+jobs:
+  build-mac:
+    runs-on: macos-13
+
+    steps:
+      - name: Get Bosman source
+        uses: actions/checkout@v4
+
+      - name: Install Python Capstone
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install capstone
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Download official Bosman 0.6.0 Mac game files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.6.0 \
+            --repo maxevans60/cm0102-bosman-edition \
+            --pattern "CM-01-02-Bosman-Edition-0.6.0-mac.dmg" \
+            --output bosman-0.6.0.dmg
+
+          hdiutil attach bosman-0.6.0.dmg -nobrowse -readonly
+          APP=$(find /Volumes -maxdepth 2 -name "CM 01-02 Bosman Edition.app" -print -quit)
+
+          if [ -z "$APP" ]; then
+            echo "Could not find Bosman app in mounted DMG"
+            exit 1
+          fi
+
+          ditto "$APP/Contents/Resources/game" "$GITHUB_WORKSPACE/game"
+
+          test -f "$GITHUB_WORKSPACE/game/cm0102.exe"
+          test -d "$GITHUB_WORKSPACE/game/Data"
+
+          hdiutil detach "$(dirname "$APP")"
+
+      - name: Download SDL2 source
+        run: |
+          curl -L \
+            -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz
+          tar -xzf SDL2.tar.gz
+
+      - name: Build universal SDL2
+        run: |
+          tools/mac/build_sdl2.sh \
+            "$GITHUB_WORKSPACE/SDL2-2.32.10" \
+            "$GITHUB_WORKSPACE/sdl2-arm64" \
+            arm64
+
+          tools/mac/build_sdl2.sh \
+            "$GITHUB_WORKSPACE/SDL2-2.32.10" \
+            "$GITHUB_WORKSPACE/sdl2-x86_64" \
+            x86_64
+
+      - name: Build Owner Game Bosman Mac app
+        env:
+          PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
+        run: |
+          tools/mac/make_app.sh \
+            --game "$GITHUB_WORKSPACE/game" \
+            --sdl2-arm64 "$GITHUB_WORKSPACE/sdl2-arm64" \
+            --sdl2-x86_64 "$GITHUB_WORKSPACE/sdl2-x86_64" \
+            --out "$GITHUB_WORKSPACE/build-owner-mac"
+
+      - name: Verify universal Owner Game bridge
+        run: |
+          APP_BIN="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app/Contents/MacOS/cm0102_recomp"
+          test -f "$APP_BIN"
+          lipo -info "$APP_BIN"
+          file "$APP_BIN"
+          strings "$APP_BIN" | grep -q "owner-game-state.json"
+          strings "$APP_BIN" | grep -q "owner-game-command.txt"
+          ls -lh "$GITHUB_WORKSPACE"/build-owner-mac/*.dmg
+
+      - name: Save Mac build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Bosman-Mac
+          path: build-owner-mac/*.dmg
+          if-no-files-found: error
