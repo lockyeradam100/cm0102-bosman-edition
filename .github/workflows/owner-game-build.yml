@@ -1,0 +1,86 @@
+name: Owner Game Windows Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Bosman source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            mingw-w64 \
+            p7zip-full \
+            python3-venv \
+            curl
+
+      - name: Install Python Capstone
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install capstone
+
+      - name: Download official Bosman 0.6.0 game files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.6.0 \
+            --repo maxevans60/cm0102-bosman-edition \
+            --pattern "CM0102-Bosman-Edition-0.6.0-Setup.exe" \
+            --output bosman-setup.exe
+
+          mkdir extracted
+          7z x bosman-setup.exe -oextracted -y >/dev/null
+
+          GAME_EXE=$(find extracted -type f -iname "cm0102.exe" | head -1)
+
+          if [ -z "$GAME_EXE" ]; then
+            echo "Could not find cm0102.exe"
+            exit 1
+          fi
+
+          echo "GAME_EXE=$GAME_EXE" >> "$GITHUB_ENV"
+          echo "Found game executable: $GAME_EXE"
+
+      - name: Download Windows SDL2
+        run: |
+          curl -L \
+            -o SDL2-devel.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-devel-2.32.10-mingw.tar.gz
+
+          tar -xzf SDL2-devel.tar.gz
+
+          echo "SDL2_DIR=$GITHUB_WORKSPACE/SDL2-2.32.10/x86_64-w64-mingw32/lib/cmake/SDL2" >> "$GITHUB_ENV"
+
+      - name: Configure Windows build
+        run: |
+          cmake \
+            -S . \
+            -B build-win \
+            -DCMAKE_TOOLCHAIN_FILE=packaging/windows/mingw-w64-x86_64.cmake \
+            -DSDL2_DIR="$SDL2_DIR" \
+            -DCM0102_EXE="$GAME_EXE" \
+            -DRECOMP_PYTHON="$GITHUB_WORKSPACE/.venv/bin/python"
+
+      - name: Build Bosman Windows executable
+        run: |
+          cmake --build build-win -j 2 --target cm0102_recomp
+
+      - name: Check executable exists
+        run: |
+          ls -lh build-win/cm0102_recomp.exe
+          file build-win/cm0102_recomp.exe
+
+      - name: Save Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Bosman-Windows
+          path: build-win/cm0102_recomp.exe
+          if-no-files-found: error
