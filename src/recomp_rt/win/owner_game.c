@@ -258,15 +258,15 @@ static void process_command(void)
     write_result("applied", "owner capital injected into live CM finance", &s, amount, before, after);
 }
 
-/* The human turn is the clean POC seam: write the live snapshot before CM shows the user's screens. When the
- * user presses Continue, the original turn returns; then consume any queued Owner Game command before the main
- * day loop advances. This proves READ -> INFLUENCE -> CONTINUE -> READ BACK without a second football world. */
-void o_005cde40(void);
-RT_WRAP(005cde40, owner_game_human_turn)
+/* Bosman already owns the one wrapper around game_run_human_turn in testrun.c. Keep that wrapper canonical
+ * and let it call these ordinary hooks before and after the original human turn. */
+void owner_game_before_human_turn(void)
 {
     write_state();
-    o_005cde40();
-    if (rt_unwinding) return;
+}
+
+void owner_game_after_human_turn(void)
+{
     process_command();
     write_state();
 }
