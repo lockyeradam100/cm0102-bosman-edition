@@ -43,6 +43,8 @@ static int game_day(void)
 
 void o_005cde40(void);
 void progress_log_end(void);
+void owner_game_before_human_turn(void);
+void owner_game_after_human_turn(void);
 
 /* RECOMP_SCREEN_LOG: a line with the game date at a human turn 7 or more game days after the last such line. The
  * screen log (waits.c) prints a line only when the screen changes, and the stall check of the test runs reads the
@@ -95,7 +97,10 @@ RT_WRAP(005cde40, human_turn)
             exit(0);
         }
     }
+    owner_game_before_human_turn();
     o_005cde40();
+    if (rt_unwinding) return;
+    owner_game_after_human_turn();
 }
 
 void o_00932e10(void);
