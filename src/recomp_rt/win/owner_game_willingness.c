@@ -1,9 +1,13 @@
 /* Owner Game player-willingness experiment.
  *
- * Build 12 keeps CM01/02's native player-interest calculation and reason bits intact, then applies
- * one deliberately narrow experiment: for Luis Figo (staff 1730) considering Aston Villa (club
- * 374), replace only the returned interest score with 1.0. Nothing else is changed. This tells us
- * whether the native score itself is the gate that produces the pre-contract rejection.
+ * Build 13 keeps Build 12's deliberately narrow Figo -> Aston Villa score override, and adds a
+ * flight recorder around every matching call to CM01/02's native player-interest scorer. The aim
+ * is observational: distinguish the transfer-willingness call from the later contract-screen call
+ * by recording the original return address, emulated CPU registers and raw stack words.
+ *
+ * Nothing new is overridden in Build 13. The native reason bits are still left untouched and the
+ * only behavioural change remains the proven Build 12 test pair: Luis Figo (staff 1730) considering
+ * Aston Villa (club 374) receives an effective returned interest score of 1.0.
  */
 #include "win.h"
 #include "host.h"
@@ -28,10 +32,11 @@
 #define OG_OFFER_BUYING_CLUB_ID 0x08u
 #define OG_OFFER_STAFF_ID       0x0cu
 
-/* Build 12's intentionally exact test pair. */
+/* Builds 12/13's intentionally exact test pair. */
 #define OG_TEST_STAFF_ID        1730
 #define OG_TEST_CLUB_ID         374
 #define OG_TEST_INTEREST_SCORE  1.0
+#define OG_TRACE_STACK_WORDS    12
 
 typedef struct {
     int valid;
@@ -47,6 +52,7 @@ typedef struct {
 } OgInterestObservation;
 
 static OgInterestObservation og_interest;
+static uint32_t og_trace_sequence;
 
 static int og_memory_ok(uint32_t p, uint32_t bytes)
 {
@@ -129,13 +135,71 @@ static int og_replace_text_file(const char *name, const char *text)
     return 1;
 }
 
-static void og_write_score_event(uint32_t staff, uint32_t club,
+static uint32_t og_stack_word(uint32_t esp, uint32_t word)
+{
+    uint64_t at64 = (uint64_t)esp + (uint64_t)word * 4u;
+    if (at64 > 0xffffffffu) return 0;
+    uint32_t at = (uint32_t)at64;
+    return og_memory_ok(at, 4) ? rd32(g_mem, at) : 0;
+}
+
+static void og_write_trace(uint32_t sequence, uint32_t staff, uint32_t club,
+                           int32_t staff_id, int32_t club_id,
+                           uint32_t entry_esp, const Cpu *entry_cpu,
+                           const uint32_t *stack_words,
+                           double native_score, double effective_score,
+                           uint32_t reason_bits, int check_wages,
+                           int mode, int squad_status)
+{
+    if (!win_user_dir[0]) return;
+    char path[1200], staff_name[80], club_name[80];
+    int year = 0, month = 0, day = 0;
+    og_copy_staff_name(staff_name, sizeof staff_name, staff);
+    og_copy_string(club_name, sizeof club_name, club + OG_CLUB_NAME);
+    win_game_date(&year, &month, &day);
+    snprintf(path, sizeof path, "%s/%s", win_user_dir, "owner-game-willingness-trace.jsonl");
+
+    FILE *f = host_fopen(path, sequence == 1 ? "wb" : "ab");
+    if (!f) return;
+    fprintf(f,
+            "{\"bridge_version\":\"0.7-poc\",\"event\":\"player_willingness_call_trace\","
+            "\"sequence\":%u,\"date\":\"%04d-%02d-%02d\","
+            "\"staff_id\":%d,\"staff_name\":\"%s\","
+            "\"human_club_id\":%d,\"human_club_name\":\"%s\","
+            "\"return_address\":\"0x%08x\",\"entry_esp\":\"0x%08x\","
+            "\"entry_eax\":\"0x%08x\",\"entry_ecx\":\"0x%08x\","
+            "\"entry_edx\":\"0x%08x\",\"entry_ebx\":\"0x%08x\","
+            "\"entry_ebp\":\"0x%08x\",\"entry_esi\":\"0x%08x\","
+            "\"entry_edi\":\"0x%08x\",\"raw_stack\":[",
+            sequence, year, month, day, staff_id, staff_name,
+            club_id, club_name, stack_words[0], entry_esp,
+            entry_cpu->eax, entry_cpu->ecx, entry_cpu->edx, entry_cpu->ebx,
+            entry_cpu->ebp, entry_cpu->esi, entry_cpu->edi);
+    for (int i = 0; i < OG_TRACE_STACK_WORDS; i++)
+        fprintf(f, "%s%u", i ? "," : "", stack_words[i]);
+    fprintf(f,
+            "],\"raw_arg0\":%u,\"raw_arg1\":%u,\"raw_arg2\":%u,"
+            "\"raw_arg3\":%u,\"raw_arg4\":%u,\"raw_arg5\":%u,"
+            "\"raw_arg6\":%u,\"raw_arg7\":%u,\"raw_arg8\":%u,"
+            "\"native_interest_score\":%.6f,\"effective_interest_score\":%.6f,"
+            "\"interest_reason_bits\":%u,\"check_wages\":%d,\"mode\":%d,"
+            "\"squad_status_interpreted\":%d}\n",
+            stack_words[1], stack_words[2], stack_words[3], stack_words[4],
+            stack_words[5], stack_words[6], stack_words[7], stack_words[8], stack_words[9],
+            native_score, effective_score, reason_bits, check_wages, mode, squad_status);
+    fflush(f);
+    host_sync(f);
+    fclose(f);
+}
+
+static void og_write_score_event(uint32_t sequence, uint32_t return_address,
+                                 uint32_t staff, uint32_t club,
                                  int32_t staff_id, int32_t club_id,
                                  double native_score, double effective_score,
                                  uint32_t reason_bits, int check_wages,
                                  int mode, int squad_status)
 {
-    char staff_name[80], club_name[80], text[1800];
+    char staff_name[80], club_name[80], text[2000];
     int year = 0, month = 0, day = 0;
     og_copy_staff_name(staff_name, sizeof staff_name, staff);
     og_copy_string(club_name, sizeof club_name, club + OG_CLUB_NAME);
@@ -143,8 +207,10 @@ static void og_write_score_event(uint32_t staff, uint32_t club,
 
     snprintf(text, sizeof text,
              "{\n"
-             "  \"bridge_version\": \"0.6-poc\",\n"
+             "  \"bridge_version\": \"0.7-poc\",\n"
              "  \"event\": \"player_willingness_score_experiment\",\n"
+             "  \"call_sequence\": %u,\n"
+             "  \"return_address\": \"0x%08x\",\n"
              "  \"date\": \"%04d-%02d-%02d\",\n"
              "  \"staff_id\": %d,\n"
              "  \"staff_name\": \"%s\",\n"
@@ -156,9 +222,10 @@ static void og_write_score_event(uint32_t staff, uint32_t club,
              "  \"interest_reason_bits\": %u,\n"
              "  \"check_wages\": %d,\n"
              "  \"mode\": %d,\n"
-             "  \"squad_status\": %d,\n"
-             "  \"experiment\": \"score_only_reason_bits_unchanged\"\n"
+             "  \"squad_status_interpreted\": %d,\n"
+             "  \"experiment\": \"score_only_reason_bits_unchanged_with_call_trace\"\n"
              "}\n",
+             sequence, return_address,
              year, month, day, staff_id, staff_name, club_id, club_name,
              native_score, effective_score, reason_bits,
              check_wages, mode, squad_status);
@@ -177,7 +244,7 @@ static void og_write_rejection_event(uint32_t offer, int reason)
     if (!human_club || buying_club_id != human_club_id) return;
 
     uint32_t staff = og_staff_from_id(staff_id);
-    char staff_name[80], club_name[80], text[2000];
+    char staff_name[80], club_name[80], text[2100];
     og_copy_staff_name(staff_name, sizeof staff_name, staff);
     og_copy_string(club_name, sizeof club_name, human_club + OG_CLUB_NAME);
 
@@ -188,7 +255,7 @@ static void og_write_rejection_event(uint32_t offer, int reason)
 
     snprintf(text, sizeof text,
              "{\n"
-             "  \"bridge_version\": \"0.6-poc\",\n"
+             "  \"bridge_version\": \"0.7-poc\",\n"
              "  \"event\": \"player_willingness_rejection\",\n"
              "  \"date\": \"%04d-%02d-%02d\",\n"
              "  \"staff_id\": %d,\n"
@@ -204,7 +271,7 @@ static void og_write_rejection_event(uint32_t offer, int reason)
              "  \"interest_reason_bits\": %u,\n"
              "  \"check_wages\": %d,\n"
              "  \"mode\": %d,\n"
-             "  \"squad_status\": %d,\n"
+             "  \"squad_status_interpreted\": %d,\n"
              "  \"result\": \"cm_rejected_move_before_contract_terms\"\n"
              "}\n",
              year, month, day, staff_id, staff_name,
@@ -230,15 +297,20 @@ static void og_write_rejection_event(uint32_t offer, int reason)
             matched ? og_interest.reason_bits : 0u);
 }
 
-/* Native player/staff interest scorer:
- * thiscall(Shortlist_Manager *this, Staff *staff, Club *club, int check_wages,
- *          char mode, int squad_status, uint *out_reasons), returns float in ST(0).
+/* Native player/staff interest scorer.
  *
- * Build 12 changes only ST(0) for the exact Figo -> Aston Villa test pair. The native reason bits
- * are observed but deliberately never edited. */
+ * Build 13 deliberately records the raw emulated call frame before invoking the original. This lets us
+ * establish whether the later contract-screen invocation really has the same parameter layout and, more
+ * importantly, identifies the exact native caller by the return address at [esp]. */
 void o_00846920(void);
 RT_WRAP(00846920, owner_game_staff_interest)
 {
+    uint32_t entry_esp = cpu.esp;
+    Cpu entry_cpu = cpu;
+    uint32_t stack_words[OG_TRACE_STACK_WORDS];
+    for (int i = 0; i < OG_TRACE_STACK_WORDS; i++)
+        stack_words[i] = og_stack_word(entry_esp, (uint32_t)i);
+
     uint32_t staff = rt_arg(0);
     uint32_t club = rt_arg(1);
     int check_wages = (int32_t)rt_arg(2);
@@ -272,13 +344,20 @@ RT_WRAP(00846920, owner_game_staff_interest)
     og_interest.squad_status = squad_status;
 
     if (override) {
-        og_write_score_event(staff, human_club, staff_id, human_club_id,
+        uint32_t sequence = ++og_trace_sequence;
+        uint32_t return_address = stack_words[0];
+        og_write_trace(sequence, staff, human_club, staff_id, human_club_id,
+                       entry_esp, &entry_cpu, stack_words,
+                       native_score, og_interest.effective_score,
+                       reason_bits, check_wages, mode, squad_status);
+        og_write_score_event(sequence, return_address,
+                             staff, human_club, staff_id, human_club_id,
                              native_score, og_interest.effective_score,
                              reason_bits, check_wages, mode, squad_status);
         fprintf(stderr,
-                "owner-game: score-only experiment: staff %d -> club %d native=%.6f effective=%.6f bits=%u\n",
-                staff_id, human_club_id, native_score,
-                og_interest.effective_score, reason_bits);
+                "owner-game: score-only trace #%u: staff %d -> club %d caller=%#x native=%.6f effective=%.6f bits=%u raw_status=%d\n",
+                sequence, staff_id, human_club_id, return_address, native_score,
+                og_interest.effective_score, reason_bits, squad_status);
     }
 }
 
