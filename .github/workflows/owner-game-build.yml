@@ -77,10 +77,36 @@ jobs:
         run: |
           cmake --build build-win -j 2 --target cm0102_recomp
 
+      - name: Extract Owner Game willingness caller source
+        run: |
+          mkdir -p build-win/owner-game-diagnostics
+
+          grep -R -n -B 120 -A 180 \
+            -E 'f_00846920\(\)|0x008609f5|0x008c0215|0x004dd5bf' \
+            build-win/recomp/gen \
+            > build-win/owner-game-diagnostics/willingness-callers-context.txt || true
+
+          grep -Rl 'f_00846920();' build-win/recomp/gen/fn_*.c | while read -r f; do
+            cp "$f" build-win/owner-game-diagnostics/
+          done
+
+          cp build-win/recomp/gen/functions.h build-win/owner-game-diagnostics/
+          echo "Diagnostic files:"
+          ls -lah build-win/owner-game-diagnostics
+          echo "Interest scorer call sites:"
+          grep -R -n 'f_00846920();' build-win/recomp/gen/fn_*.c || true
+
       - name: Check executable exists
         run: |
           ls -lh build-win/cm0102_recomp.exe
           file build-win/cm0102_recomp.exe
+
+      - name: Save willingness diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Willingness-Diagnostics
+          path: build-win/owner-game-diagnostics
+          if-no-files-found: error
 
       - name: Save Windows build
         uses: actions/upload-artifact@v4
