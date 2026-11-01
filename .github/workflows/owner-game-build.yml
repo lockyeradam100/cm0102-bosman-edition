@@ -82,13 +82,24 @@ jobs:
           mkdir -p build-win/owner-game-diagnostics
 
           grep -R -n -B 120 -A 180 \
-            -E 'f_00846920\(\)|0x008609f5|0x008c0215|0x004dd5bf' \
+            -E 'f_00846920\(\)|0x008609f5|0x008c0215|0x004dd5bf|f_007ff270\(\)' \
             build-win/recomp/gen \
             > build-win/owner-game-diagnostics/willingness-callers-context.txt || true
 
-          grep -Rl 'f_00846920();' build-win/recomp/gen/fn_*.c | while read -r f; do
+          grep -Rl -E 'f_00846920\(\);|void f_007ff270\(void\)' build-win/recomp/gen/fn_*.c | while read -r f; do
             cp "$f" build-win/owner-game-diagnostics/
           done
+
+          TARGET=$(grep -Rl '^void f_007ff270(void)' build-win/recomp/gen/fn_*.c | head -1)
+          if [ -n "$TARGET" ]; then
+            echo "f_007ff270 definition: $TARGET"
+            cp "$TARGET" build-win/owner-game-diagnostics/
+            grep -n -A 500 '^void f_007ff270(void)' "$TARGET" \
+              > build-win/owner-game-diagnostics/f_007ff270-context.txt || true
+          else
+            echo "Could not locate f_007ff270 definition"
+            exit 1
+          fi
 
           cp build-win/recomp/gen/functions.h build-win/owner-game-diagnostics/
           echo "Diagnostic files:"
