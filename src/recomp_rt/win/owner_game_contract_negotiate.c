@@ -1,45 +1,41 @@
-/* Owner Game contract-terms gate experiment.
+/* Owner Game negotiation-room vertical slice.
  *
- * Build 19 proved the exact Figo -> Aston Villa Basic-tab call already returns native
- * will_negotiate = 1. Live caller values plus generated-source tracing then proved two later
- * Basic-tab gates:
+ * CM remains authoritative for the player's demand and final contract decision. This module only
+ * controls the owner layer around the exact Figo -> Aston Villa proof negotiation:
  *
- *   1) affordability:
- *      contract_field_c = 154962
- *      local wage ceiling = 75080.0
- *      multiplier = 1.5
- *      native threshold = 112620.0 -> refusal
+ *   - hold position: keep the proven £120k contract-screen authority from Build 22;
+ *   - owner exception: authorise £160k for this negotiation only;
+ *   - take time / final offer / walk away / reopen: persist the Owner Game negotiation phase;
+ *   - preserve CM's native will-negotiate result and later accept/reject resolver.
  *
- *   2) strength of interest after affordability:
- *      local interest = 1.0
- *      shortcut threshold = 2.75
- *      values above 2.75 jump directly to the real terms-rendering path.
- *
- * Build 21 is an exact-pair controlled test only. For Luis Figo (staff 1730) considering
- * Aston Villa (club 374), and only at the Basic-tab caller after CM has natively returned
- * will_negotiate = 1, it changes two caller locals:
- *
- *      wage ceiling 75080 -> 120000  (affordability threshold 112620 -> 180000)
- *      interest      1.0  -> 3.0     (clears the >2.75 terms shortcut)
- *
- * It does not change the contract object itself, Figo's wage figure, bonuses, clauses, club
- * permission, transfer fee or any later accept/reject decision.
+ * The sidecar control file is deliberately prototype-only. A later Owner Game UI can drive the
+ * same state without changing the football-engine seam.
  */
 #include "win.h"
 #include "host.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define OG_TEST_STAFF_ID               1730
 #define OG_TEST_CLUB_ID                374
 #define OG_BASIC_TAB_RETURN            0x004e0ac2u
 #define OG_CONTRACT_STAFF_ID           0x00u
 #define OG_CONTRACT_CLUB_ID            0x04u
-#define OG_TEST_LOCAL_WAGE_CEILING     120000.0
+#define OG_HOLD_WAGE_CEILING           120000.0
+#define OG_EXCEPTION_WAGE_CEILING      160000.0
 #define OG_AFFORDABILITY_MULTIPLIER    1.5
-#define OG_TEST_LOCAL_INTEREST_SCORE   3.0f
+#define OG_TERMS_INTEREST_SCORE        3.0f
 #define OG_TERMS_INTEREST_THRESHOLD    2.75
+#define OG_CONTROL_FILE                "owner-game-negotiation-control.txt"
+#define OG_STATE_FILE                  "owner-game-negotiation.json"
+
+typedef struct {
+    const char *phase;
+    int owner_exception;
+    int reopened;
+} OgNegotiationControl;
 
 static int og_negotiate_memory_ok(uint32_t p, uint32_t bytes)
 {
@@ -64,17 +60,62 @@ static float og_read_f32(uint32_t p)
 
 static void og_write_f64(uint32_t p, double value)
 {
-    if (og_negotiate_memory_ok(p, 8))
-        wrf64(g_mem, p, value);
+    if (og_negotiate_memory_ok(p, 8)) wrf64(g_mem, p, value);
 }
 
 static void og_write_f32(uint32_t p, float value)
 {
-    if (og_negotiate_memory_ok(p, 4))
-        wrf32(g_mem, p, value);
+    if (og_negotiate_memory_ok(p, 4)) wrf32(g_mem, p, value);
 }
 
-static void og_write_event(int32_t staff_id, int32_t club_id,
+static void og_trim_line(char *s)
+{
+    size_t n = strlen(s);
+    while (n && (s[n - 1] == '\r' || s[n - 1] == '\n' || s[n - 1] == ' ' || s[n - 1] == '\t'))
+        s[--n] = 0;
+}
+
+static OgNegotiationControl og_read_control(void)
+{
+    OgNegotiationControl c = {"active", 0, 0};
+    if (!win_user_dir[0]) return c;
+
+    char path[1200], line[128];
+    snprintf(path, sizeof path, "%s/%s", win_user_dir, OG_CONTROL_FILE);
+    FILE *f = host_fopen(path, "rb");
+    if (!f) return c;
+
+    line[0] = 0;
+    fgets(line, sizeof line, f);
+    fclose(f);
+    og_trim_line(line);
+
+    if (!strcmp(line, "active_exception")) {
+        c.phase = "active";
+        c.owner_exception = 1;
+    } else if (!strcmp(line, "dormant")) {
+        c.phase = "dormant";
+    } else if (!strcmp(line, "final_offer_exception")) {
+        c.phase = "final_offer";
+        c.owner_exception = 1;
+    } else if (!strcmp(line, "walked_away")) {
+        c.phase = "walked_away";
+    } else if (!strcmp(line, "reopened_hold")) {
+        c.phase = "active";
+        c.reopened = 1;
+    } else if (!strcmp(line, "reopened_exception")) {
+        c.phase = "active";
+        c.owner_exception = 1;
+        c.reopened = 1;
+    } else {
+        c.phase = "active";
+    }
+
+    return c;
+}
+
+static void og_write_state(const OgNegotiationControl *control,
+                           int32_t staff_id, int32_t club_id,
                            uint32_t return_address, int native_result,
                            uint32_t contract,
                            double native_ceiling, double effective_ceiling,
@@ -90,22 +131,24 @@ static void og_write_event(int32_t staff_id, int32_t club_id,
     double native_affordability = native_ceiling * OG_AFFORDABILITY_MULTIPLIER;
     double effective_affordability = effective_ceiling * OG_AFFORDABILITY_MULTIPLIER;
 
-    snprintf(path, sizeof path, "%s/%s", win_user_dir,
-             "owner-game-contract-terms-gates.json");
+    snprintf(path, sizeof path, "%s/%s", win_user_dir, OG_STATE_FILE);
     snprintf(tmp, sizeof tmp, "%s.tmp", path);
-
     FILE *f = host_fopen(tmp, "wb");
     if (!f) return;
 
     fprintf(f,
             "{\n"
-            "  \"bridge_version\": \"1.2-poc\",\n"
-            "  \"event\": \"contract_terms_gate_experiment\",\n"
+            "  \"bridge_version\": \"1.4-poc\",\n"
+            "  \"event\": \"owner_negotiation_room\",\n"
             "  \"date\": \"%04d-%02d-%02d\",\n"
             "  \"staff_id\": %d,\n"
             "  \"staff_name\": \"Figo\",\n"
             "  \"human_club_id\": %d,\n"
             "  \"human_club_name\": \"Aston Villa\",\n"
+            "  \"phase\": \"%s\",\n"
+            "  \"reopened\": %s,\n"
+            "  \"owner_exception_approved\": %s,\n"
+            "  \"owner_wage_authority\": %.0f,\n"
             "  \"return_address\": \"0x%08x\",\n"
             "  \"native_will_negotiate\": %d,\n"
             "  \"contract_field_c\": %u,\n"
@@ -114,27 +157,28 @@ static void og_write_event(int32_t staff_id, int32_t club_id,
             "  \"effective_local_wage_ceiling\": %.3f,\n"
             "  \"effective_affordability_threshold\": %.3f,\n"
             "  \"native_local_interest_score\": %.3f,\n"
-            "  \"terms_interest_threshold\": %.3f,\n"
             "  \"effective_local_interest_score\": %.3f,\n"
-            "  \"gate_overrides_applied\": true,\n"
-            "  \"experiment\": \"exact_basic_tab_affordability_plus_interest_terms_path\"\n"
+            "  \"terms_interest_threshold\": %.3f,\n"
+            "  \"player_demand_and_final_decision\": \"native_cm\"\n"
             "}\n",
-            year, month, day, staff_id, club_id, return_address,
-            native_result, contract_c,
+            year, month, day, staff_id, club_id,
+            control->phase,
+            control->reopened ? "true" : "false",
+            control->owner_exception ? "true" : "false",
+            effective_ceiling,
+            return_address, native_result, contract_c,
             native_ceiling, native_affordability,
             effective_ceiling, effective_affordability,
-            (double)native_interest, OG_TERMS_INTEREST_THRESHOLD,
-            (double)effective_interest);
+            (double)native_interest, (double)effective_interest,
+            OG_TERMS_INTEREST_THRESHOLD);
 
     int ok = fflush(f) == 0;
     if (ok) host_sync(f);
     fclose(f);
-
-    if (!ok || host_replace(tmp, path))
-        host_unlink(tmp);
+    if (!ok || host_replace(tmp, path)) host_unlink(tmp);
 }
 
-/* CONTRACT_MANAGER::will_negotiate_offer(this, STAFF_CONTRACT *offer), returns 1 or 0 in EAX. */
+/* CONTRACT_MANAGER::will_negotiate_offer(this, STAFF_CONTRACT *offer), returns native 1/0 in EAX. */
 void o_004d4660(void);
 RT_WRAP(004d4660, owner_game_contract_will_negotiate)
 {
@@ -149,20 +193,14 @@ RT_WRAP(004d4660, owner_game_contract_will_negotiate)
         club_id = (int32_t)rd32(g_mem, contract + OG_CONTRACT_CLUB_ID);
     }
 
-    int exact_test = return_address == OG_BASIC_TAB_RETURN &&
-                     staff_id == OG_TEST_STAFF_ID &&
-                     club_id == OG_TEST_CLUB_ID;
+    int exact_proof = return_address == OG_BASIC_TAB_RETURN &&
+                      staff_id == OG_TEST_STAFF_ID &&
+                      club_id == OG_TEST_CLUB_ID;
 
     o_004d4660();
-    if (rt_unwinding || !exact_test) return;
+    if (rt_unwinding || !exact_proof) return;
 
     int native_result = cpu.eax ? 1 : 0;
-
-    /* At 0x4e0abd the caller pushes edi, then CALL pushes the return address.
-     * The Basic-tab function's own ESP is therefore entry_esp + 8. The generated
-     * code subsequently reads:
-     *   qword [esp + 0x44] for the affordability ceiling, and
-     *   float [esp + 0x20] for the contract-screen interest score. */
     uint32_t caller_esp = entry_esp + 8u;
     uint32_t ceiling_ptr = caller_esp + 0x44u;
     uint32_t interest_ptr = caller_esp + 0x20u;
@@ -171,21 +209,24 @@ RT_WRAP(004d4660, owner_game_contract_will_negotiate)
     float native_interest = og_read_f32(interest_ptr);
     double effective_ceiling = native_ceiling;
     float effective_interest = native_interest;
+    OgNegotiationControl control = og_read_control();
 
     if (native_result && native_ceiling > 0.0) {
-        effective_ceiling = OG_TEST_LOCAL_WAGE_CEILING;
+        effective_ceiling = control.owner_exception
+                            ? OG_EXCEPTION_WAGE_CEILING
+                            : OG_HOLD_WAGE_CEILING;
+        effective_interest = OG_TERMS_INTEREST_SCORE;
         og_write_f64(ceiling_ptr, effective_ceiling);
-
-        effective_interest = OG_TEST_LOCAL_INTEREST_SCORE;
         og_write_f32(interest_ptr, effective_interest);
     }
 
-    og_write_event(staff_id, club_id, return_address, native_result,
+    og_write_state(&control, staff_id, club_id, return_address, native_result,
                    contract, native_ceiling, effective_ceiling,
                    native_interest, effective_interest);
 
     fprintf(stderr,
-            "owner-game: terms-gate test: staff %d -> club %d wage %.3f->%.3f interest %.3f->%.3f\n",
+            "owner-game: negotiation room: phase=%s exception=%d staff %d -> club %d wage %.3f->%.3f interest %.3f->%.3f\n",
+            control.phase, control.owner_exception,
             staff_id, club_id,
             native_ceiling, effective_ceiling,
             (double)native_interest, (double)effective_interest);
