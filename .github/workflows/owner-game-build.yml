@@ -123,6 +123,14 @@ jobs:
           ls -lh build-win/cm0102_recomp.exe
           file build-win/cm0102_recomp.exe
 
+      - name: Package Owner Game negotiation prototype
+        run: |
+          mkdir -p build-win/owner-game-package
+          cp build-win/cm0102_recomp.exe build-win/owner-game-package/
+          cp tools/owner-game/OwnerGameNegotiation.bat build-win/owner-game-package/
+          echo "Owner Game negotiation package:"
+          ls -lah build-win/owner-game-package
+
       - name: Save willingness diagnostics
         uses: actions/upload-artifact@v4
         with:
@@ -134,5 +142,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Owner-Game-Bosman-Windows
-          path: build-win/cm0102_recomp.exe
+          path: build-win/owner-game-package
           if-no-files-found: error
