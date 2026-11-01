@@ -101,6 +101,17 @@ jobs:
             exit 1
           fi
 
+          BASIC=$(grep -Rl '^void f_004e06e0(void)' build-win/recomp/gen/fn_*.c | head -1)
+          if [ -n "$BASIC" ]; then
+            echo "f_004e06e0 definition: $BASIC"
+            cp "$BASIC" build-win/owner-game-diagnostics/
+            grep -n -A 12000 '^void f_004e06e0(void)' "$BASIC" \
+              > build-win/owner-game-diagnostics/f_004e06e0-basic-tab.txt || true
+          else
+            echo "Could not locate f_004e06e0 definition"
+            exit 1
+          fi
+
           cp build-win/recomp/gen/functions.h build-win/owner-game-diagnostics/
           echo "Diagnostic files:"
           ls -lah build-win/owner-game-diagnostics
