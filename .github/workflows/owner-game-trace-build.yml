@@ -86,3 +86,5 @@ EOF
           name: Owner-Game-Persistence-Trace-Windows
           path: build-win/owner-game-trace-package
           if-no-files-found: error
+
+# Trace-only packaging workflow: native contract logic remains unchanged.
