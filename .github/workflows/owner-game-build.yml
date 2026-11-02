@@ -77,7 +77,7 @@ jobs:
         run: |
           cmake --build build-win -j 2 --target cm0102_recomp
 
-      - name: Extract Owner Game willingness caller source
+      - name: Extract Owner Game contract diagnostics
         run: |
           mkdir -p build-win/owner-game-diagnostics
 
@@ -112,11 +112,30 @@ jobs:
             exit 1
           fi
 
+          # Build #27 diagnosis: export the native offer submit and persistence chain.
+          for addr in 004e01e0 004e2280 004cc490 004cda70 004cd230 004cd9c0; do
+            SRC=$(grep -Rl "^void f_${addr}(void)" build-win/recomp/gen/fn_*.c | head -1)
+            if [ -z "$SRC" ]; then
+              echo "Could not locate f_${addr} definition"
+              exit 1
+            fi
+            echo "f_${addr} definition: $SRC"
+            cp "$SRC" build-win/owner-game-diagnostics/
+            grep -n -A 12000 "^void f_${addr}(void)" "$SRC" \
+              > "build-win/owner-game-diagnostics/f_${addr}-context.txt" || true
+          done
+
+          grep -R -n -B 100 -A 220 \
+            -E 'f_004e01e0\(\)|f_004e2280\(\)|f_004cc490\(\)|f_004cda70\(\)|f_004cd230\(\)|f_004cd9c0\(\)' \
+            build-win/recomp/gen/fn_*.c \
+            > build-win/owner-game-diagnostics/contract-submit-callers.txt || true
+
           cp build-win/recomp/gen/functions.h build-win/owner-game-diagnostics/
           echo "Diagnostic files:"
           ls -lah build-win/owner-game-diagnostics
-          echo "Interest scorer call sites:"
-          grep -R -n 'f_00846920();' build-win/recomp/gen/fn_*.c || true
+          echo "Contract submit/persistence call sites:"
+          grep -R -n -E 'f_004e01e0\(\);|f_004e2280\(\);|f_004cc490\(\);|f_004cda70\(\);|f_004cd230\(\);|f_004cd9c0\(\);' \
+            build-win/recomp/gen/fn_*.c || true
 
       - name: Check executable exists
         run: |
@@ -131,10 +150,10 @@ jobs:
           echo "Owner Game negotiation package:"
           ls -lah build-win/owner-game-package
 
-      - name: Save willingness diagnostics
+      - name: Save contract diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: Owner-Game-Willingness-Diagnostics
+          name: Owner-Game-Contract-Diagnostics
           path: build-win/owner-game-diagnostics
           if-no-files-found: error
 
