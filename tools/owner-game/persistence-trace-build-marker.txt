@@ -1,0 +1,2 @@
+Owner Game persistence trace packaging trigger.
+The executable remains native CM contract logic plus non-invasive Figo -> Aston Villa add/remove tracing.
