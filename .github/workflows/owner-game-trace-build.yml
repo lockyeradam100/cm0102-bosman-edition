@@ -64,20 +64,20 @@ jobs:
           mkdir -p build-win/owner-game-trace-package
           cp build-win/cm0102_recomp.exe build-win/owner-game-trace-package/
           cp tools/owner-game/OwnerGameNegotiation.bat build-win/owner-game-trace-package/
-          cat > build-win/owner-game-trace-package/READ-ME-FIRST.txt <<'EOF'
-Owner Game - Figo contract persistence trace
-
-1. Close CM completely.
-2. Copy cm0102_recomp.exe and OwnerGameNegotiation.bat into the Owner Game test folder, replacing the old EXE.
-3. Start the new EXE and load Owner_Figo_Negotiation.
-4. Before clicking Negotiate, run OwnerGameNegotiation.bat and choose 2 - Approve Exception.
-5. In CM, negotiate £150,000 p/w and the maximum signing-on fee CM permits.
-6. Submit the offer through the final CM confirmation screen.
-7. Do not progress days yet.
-8. Close CM after the submission test and send owner-game-contract-submit.log from the CM user folder.
-
-The trace does not force acceptance or rejection. It records whether native CM creates/removes the pending Figo -> Aston Villa contract offer.
-EOF
+          printf '%s\n' \
+            'Owner Game - Figo contract persistence trace' \
+            '' \
+            '1. Close CM completely.' \
+            '2. Copy cm0102_recomp.exe and OwnerGameNegotiation.bat into the Owner Game test folder, replacing the old EXE.' \
+            '3. Start the new EXE and load Owner_Figo_Negotiation.' \
+            '4. Before clicking Negotiate, run OwnerGameNegotiation.bat and choose 2 - Approve Exception.' \
+            '5. In CM, negotiate £150,000 p/w and the maximum signing-on fee CM permits.' \
+            '6. Submit the offer through the final CM confirmation screen.' \
+            '7. Do not progress days yet.' \
+            '8. Close CM after the submission test and send owner-game-contract-submit.log from the CM user folder.' \
+            '' \
+            'The trace does not force acceptance or rejection. It records whether native CM creates/removes the pending Figo -> Aston Villa contract offer.' \
+            > build-win/owner-game-trace-package/READ-ME-FIRST.txt
           ls -lah build-win/owner-game-trace-package
 
       - name: Save persistence trace build
@@ -86,5 +86,3 @@ EOF
           name: Owner-Game-Persistence-Trace-Windows
           path: build-win/owner-game-trace-package
           if-no-files-found: error
-
-# Trace-only packaging workflow: native contract logic remains unchanged.
