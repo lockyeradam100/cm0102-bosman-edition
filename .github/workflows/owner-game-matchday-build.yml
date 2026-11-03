@@ -1,0 +1,97 @@
+name: Owner Game Matchday Delegation Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-live-bridge
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Bosman source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake mingw-w64 p7zip-full python3-venv nsis curl
+
+      - name: Install Python Capstone
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install capstone
+
+      - name: Download official Bosman 0.6.0 game files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.6.0 \
+            --repo maxevans60/cm0102-bosman-edition \
+            --pattern "CM0102-Bosman-Edition-0.6.0-Setup.exe" \
+            --output bosman-setup.exe
+          mkdir extracted
+          7z x bosman-setup.exe -oextracted -y >/dev/null
+          GAME_EXE=$(find extracted -type f -iname "cm0102.exe" | head -1)
+          test -n "$GAME_EXE"
+          echo "GAME_EXE=$GAME_EXE" >> "$GITHUB_ENV"
+
+      - name: Download Windows SDL2
+        run: |
+          curl -L -o SDL2-devel.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-devel-2.32.10-mingw.tar.gz
+          tar -xzf SDL2-devel.tar.gz
+          echo "SDL2_DIR=$GITHUB_WORKSPACE/SDL2-2.32.10/x86_64-w64-mingw32/lib/cmake/SDL2" >> "$GITHUB_ENV"
+
+      - name: Configure Windows build
+        run: |
+          cmake -S . -B build-win \
+            -DCMAKE_TOOLCHAIN_FILE=packaging/windows/mingw-w64-x86_64.cmake \
+            -DSDL2_DIR="$SDL2_DIR" \
+            -DCM0102_EXE="$GAME_EXE" \
+            -DRECOMP_PYTHON="$GITHUB_WORKSPACE/.venv/bin/python"
+
+      - name: Build matchday delegation executable
+        run: |
+          cmake --build build-win -j 2 --target cm0102_recomp
+          test -f build-win/cm0102_recomp.exe
+
+      - name: Package Owner Game matchday delegation
+        run: |
+          mkdir -p build-win/owner-game-matchday-package
+          cp build-win/cm0102_recomp.exe build-win/owner-game-matchday-package/
+          printf '%s\n' \
+            'Owner Game - Native one-match delegation prototype' \
+            '' \
+            'What this build proves:' \
+            '- Attend Match remains normal CM behaviour: do nothing and continue as usual.' \
+            '- Let Manager Handle Next Match is added beside the existing holiday controls.' \
+            '- Selecting it arms only the club next first-team fixture.' \
+            '- Normal human/owner turns continue until the final turn before that fixture.' \
+            '- CM native holiday/AI control is then enabled for the fixture.' \
+            '- Holiday settings that preserve the human tactic/team are temporarily disabled, so CM owns the football decisions.' \
+            '- As soon as CM records the result, control and the original holiday settings are restored automatically.' \
+            '- No second match engine and no generated result are used.' \
+            '' \
+            'Test:' \
+            '1. Close CM completely.' \
+            '2. Replace the existing test cm0102_recomp.exe with this one.' \
+            '3. Load a save with a first-team fixture in the next few days.' \
+            '4. Open the left-side holiday menu and choose Let Manager Handle Next Match.' \
+            '5. Confirm the Owner Game message, then continue normally.' \
+            '6. Verify you are not forced into the match screen and that CM produces the result.' \
+            '7. Verify normal control returns after the match.' \
+            '' \
+            'Selecting the item again before delegation starts cancels it. Attend Match is the default unchanged CM route.' \
+            > build-win/owner-game-matchday-package/READ-ME-FIRST.txt
+          ls -lah build-win/owner-game-matchday-package
+
+      - name: Save matchday delegation build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Matchday-Delegation-Windows
+          path: build-win/owner-game-matchday-package
+          if-no-files-found: error
