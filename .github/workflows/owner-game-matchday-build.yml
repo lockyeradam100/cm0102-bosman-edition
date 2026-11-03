@@ -39,6 +39,11 @@ jobs:
           test -n "$GAME_EXE"
           echo "GAME_EXE=$GAME_EXE" >> "$GITHUB_ENV"
 
+      - name: Verify native holiday-setting callback bytes
+        run: |
+          echo "Native 0x5feb60 prologue:"
+          x86_64-w64-mingw32-objdump -s --start-address=0x5feb60 --stop-address=0x5feb68 "$GAME_EXE"
+
       - name: Download Windows SDL2
         run: |
           curl -L -o SDL2-devel.tar.gz \
