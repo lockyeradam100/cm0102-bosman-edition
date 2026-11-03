@@ -105,6 +105,7 @@ CALLBACKS = {
     0x5E8290: ("83ec6c8b0d307ab6", "message box (title, text, flags)"),
     0x5FCFF0: ("8b44240481ec0002", "commentary speed of a manager"),
     0x5FD2F0: ("81ec00020000568b", "set the holiday flag"),
+    0x5FEB60: ("8b54240c81ec0802", "set a holiday setting"),
     0x5FED50: ("8b44240481ec0002", "selection saved at the start of a holiday"),
     0x6B2D60: ("6a006a006a016840", "push the Go on holiday confirm"),
     0x5FBD00: ("8b44240481ec0002", "tactic of a manager"),
