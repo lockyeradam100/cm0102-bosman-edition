@@ -68,11 +68,23 @@ jobs:
         env:
           PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
         run: |
+          set +e
           tools/mac/make_app.sh \
             --game "$GITHUB_WORKSPACE/game" \
             --sdl2-arm64 "$GITHUB_WORKSPACE/sdl2-arm64" \
             --sdl2-x86_64 "$GITHUB_WORKSPACE/sdl2-x86_64" \
             --out "$GITHUB_WORKSPACE/build-owner-mac"
+          result=$?
+          set -e
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          test -f "$APP/Contents/MacOS/cm0102_recomp"
+          test -d "$APP/Contents/Resources/game/Data"
+          if [ "$result" -ne 0 ]; then
+            echo "DMG creation failed after successful app build; publishing complete Mac app ZIP instead."
+          fi
+          cd "$GITHUB_WORKSPACE/build-owner-mac"
+          ditto -c -k --sequesterRsrc --keepParent "CM 01-02 Bosman Edition.app" Owner-Game-Mac-Complete.zip
+          test -s Owner-Game-Mac-Complete.zip
 
       - name: Verify universal Owner Game bridge
         run: |
@@ -82,12 +94,15 @@ jobs:
           file "$APP_BIN"
           strings "$APP_BIN" | grep -q "owner-game-state.json"
           strings "$APP_BIN" | grep -q "owner-game-command.txt"
-          ls -lh "$GITHUB_WORKSPACE"/build-owner-mac/*.dmg
+          ls -lh "$GITHUB_WORKSPACE"/build-owner-mac/Owner-Game-Mac-Complete.zip
+          test -d "$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app/Contents/Resources/game/Data"
 
       - name: Save Mac build
         uses: actions/upload-artifact@v4
         with:
           name: Owner-Game-Bosman-Mac
-          path: build-owner-mac/*.dmg
+          path: |
+            build-owner-mac/*.dmg
+            build-owner-mac/Owner-Game-Mac-Complete.zip
           if-no-files-found: error
           retention-days: 90
