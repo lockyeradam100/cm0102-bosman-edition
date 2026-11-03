@@ -1,6 +1,12 @@
 /* Holiday until next match (#30): a left bar item that starts the original's holiday and ends it the
  * day before the next match of the player's club.
  *
+ * Owner Game also uses the same native holiday path for a one-match delegation. "Let Manager Handle
+ * Next Match" arms the next first-team fixture without taking control away immediately. On the final
+ * human turn before that fixture, CM's real holiday flag is enabled and holiday settings 2/3 are
+ * temporarily disabled so CM picks the tactic and team. Once CM records the result, the holiday flag
+ * and the two settings are restored. CM's own match engine remains the only match simulation.
+ *
  * The original holiday has no length: the "Go on holiday ?" screen has only settings, and the holiday
  * runs until the player clicks (Return from holiday). The runtime adds the item "Holiday until next
  * match" below Go on Holiday. A click shows the same confirm screen. Yes starts the holiday as usual,
@@ -35,6 +41,7 @@ extern const uint32_t rt_site_holiday_item;
 #define RESULT_BUTTON 0xdd6be4u
 
 #define SET_HOLIDAY 0x5fd2f0u       /* thiscall HUMANS (value, manager or 0), ret 8 */
+#define SET_SETTING 0x5feb60u       /* thiscall HUMANS (index, value, manager or 0), ret 0xc */
 #define SAVED_SELECTION 0x5fed50u   /* thiscall HUMANS (manager): record + 0x9b28, 8 bytes per slot */
 #define SELECTION_CLEAR 0x896fe0u   /* thiscall TACTICS (club, 0, 0, 0) */
 #define SELECTION_SET 0x896a90u     /* thiscall TACTICS (club, slot, player, 0) */
@@ -45,13 +52,23 @@ extern const uint32_t rt_site_holiday_item;
 #define SIDE_BAR_DISPLAY 0xb74c4cu  /* per player slot: the display; widget ids at + 0xba966 + w * 0x18c */
 
 #define HOLIDAY_ID 0x3ef            /* Go on Holiday */
-#define NEXT_MATCH_ID 0x4b7         /* the new item; the original uses no such id */
+#define NEXT_MATCH_ID 0x4b7         /* Holiday until next match; the original uses no such id */
+#define DELEGATE_MATCH_ID 0x4b8     /* Owner Game: manager handles exactly the next first-team match */
 #define SEARCH_DAYS 60
 
 static uint32_t item_args[18];
 static uint32_t item_display;
 static int pending;                 /* the confirm of the new item is open */
 static int marked[16];              /* the holiday of this human ends before the next match */
+
+/* Owner Game one-match delegation. These are deliberately runtime-only. The save remains CM's save and
+ * no second football state is introduced. */
+static uint32_t delegated_fixture[16];
+static int32_t delegated_manager_id[16];
+static int32_t delegated_club_id[16];
+static unsigned char delegated_setting2[16];
+static unsigned char delegated_setting3[16];
+static unsigned char delegated_started[16];
 
 static uint32_t call_this(uint32_t fn, uint32_t self, int n, const uint32_t *args)
 {
@@ -88,10 +105,17 @@ static int serial(int day, int year)
     return n;
 }
 
-/* The next unplayed fixture of the club from today on, as a serial day, or -1. The search ends at the
- * last year the fixture store holds, so it never makes a new year block (0x5abf10). */
-static int next_fixture(uint32_t club)
+static int fixture_serial(uint32_t fixture)
 {
+    return serial((int16_t)rd16(g_mem, fixture + 0x2a), (int16_t)rd16(g_mem, fixture + 0x28));
+}
+
+/* The next unplayed fixture of the club from today on, as a serial day, or -1. The search ends at the
+ * last year the fixture store holds, so it never makes a new year block (0x5abf10). When fixture_out is
+ * non-NULL it also returns CM's actual fixture pointer, which Owner Game can watch until CM records a result. */
+static int next_fixture_info(uint32_t club, uint32_t *fixture_out)
+{
+    if (fixture_out) *fixture_out = 0;
     int day = (int16_t)rd16(g_mem, GAME_DAY), year = (int16_t)rd16(g_mem, GAME_DAY + 2);
     int end_day = day + SEARCH_DAYS, end_year = year;
     while (end_day >= days_in(end_year)) end_day -= days_in(end_year++);
@@ -109,7 +133,8 @@ static int next_fixture(uint32_t club)
     for (uint32_t node = rd32(g_mem, list + 2), n = 0; node && n < 1000; node = rd32(g_mem, node + 6), n++) {
         uint32_t f = rd32(g_mem, node);
         if (f && (int8_t)g_mem[f + 0x43] == -1) {
-            found = serial((int16_t)rd16(g_mem, f + 0x2a), (int16_t)rd16(g_mem, f + 0x28));
+            found = fixture_serial(f);
+            if (fixture_out) *fixture_out = f;
             break;
         }
     }
@@ -118,10 +143,96 @@ static int next_fixture(uint32_t club)
     return found;
 }
 
+static int next_fixture(uint32_t club)
+{
+    return next_fixture_info(club, NULL);
+}
+
 static uint32_t club_of(uint32_t manager)
 {
     uint32_t club = rd32(g_mem, manager + 0x39);
     return club ? club : rd32(g_mem, manager + 0x24);
+}
+
+static void set_holiday(uint32_t manager, uint32_t value)
+{
+    uint32_t args[2] = {value, manager};
+    call_this(SET_HOLIDAY, rd32(g_mem, HUMANS), 2, args);
+}
+
+static void set_holiday_setting(uint32_t manager, uint32_t index, uint32_t value)
+{
+    uint32_t args[3] = {index, value, manager};
+    call_this(SET_SETTING, rd32(g_mem, HUMANS), 3, args);
+}
+
+static void delegate_clear(int slot)
+{
+    delegated_fixture[slot] = 0;
+    delegated_manager_id[slot] = -1;
+    delegated_club_id[slot] = -1;
+    delegated_setting2[slot] = 0;
+    delegated_setting3[slot] = 0;
+    delegated_started[slot] = 0;
+}
+
+static int delegate_context_matches(int slot, uint32_t manager)
+{
+    if (!manager || !delegated_fixture[slot]) return 0;
+    uint32_t club = club_of(manager);
+    return club && (int32_t)rd32(g_mem, manager) == delegated_manager_id[slot] &&
+           (int32_t)rd32(g_mem, club) == delegated_club_id[slot];
+}
+
+/* Start CM's own holiday just before the delegated fixture. Settings 2 and 3 are the two original
+ * holiday controls that otherwise preserve the human's tactic/current selection. We turn them off only
+ * for this fixture so CM's manager/assistant path owns the football decisions, then restore them. */
+static void delegate_start(int slot, uint32_t manager)
+{
+    if (delegated_started[slot]) return;
+    uint32_t rec = record(slot);
+    delegated_setting2[slot] = g_mem[rec + SETTINGS + 2];
+    delegated_setting3[slot] = g_mem[rec + SETTINGS + 3];
+    set_holiday_setting(manager, 2, 0);
+    set_holiday_setting(manager, 3, 0);
+    set_holiday(manager, 1);
+    delegated_started[slot] = 1;
+    fprintf(stderr, "owner-game: manager takes the next match for human %d, fixture %u\n",
+            slot, delegated_fixture[slot]);
+}
+
+static void delegate_restore_and_clear(int slot, uint32_t manager, int clear_holiday)
+{
+    if (delegated_started[slot] && manager) {
+        if (clear_holiday) set_holiday(manager, 0);
+        set_holiday_setting(manager, 2, delegated_setting2[slot]);
+        set_holiday_setting(manager, 3, delegated_setting3[slot]);
+    }
+    delegate_clear(slot);
+}
+
+/* Arm the next first-team fixture. Control stays with the owner until the last human turn before the
+ * fixture; if the match is today/tomorrow, native holiday control starts immediately. */
+static int delegate_arm(uint32_t manager)
+{
+    int slot = human_slot(manager);
+    if (slot < 0) return -1;
+    uint32_t rec = record(slot);
+    if (rd32(g_mem, rec + ON_HOLIDAY)) return -2;
+    uint32_t club = club_of(manager), fixture = 0;
+    int match = club ? next_fixture_info(club, &fixture) : -1;
+    if (match < 0 || !fixture) return 0;
+
+    delegate_clear(slot);
+    delegated_fixture[slot] = fixture;
+    delegated_manager_id[slot] = (int32_t)rd32(g_mem, manager);
+    delegated_club_id[slot] = (int32_t)rd32(g_mem, club);
+
+    int today = serial((int16_t)rd16(g_mem, GAME_DAY), (int16_t)rd16(g_mem, GAME_DAY + 2));
+    fprintf(stderr, "owner-game: delegated next match armed for human %d, today %d, match %d, fixture %u\n",
+            slot, today, match, fixture);
+    if (match <= today + 1) delegate_start(slot, manager);
+    return 1;
 }
 
 /* The Go on Holiday item: keep its arguments, before the wrap scales them. */
@@ -133,28 +244,48 @@ int holiday_widget_before(void)
     return 1;
 }
 
-/* After Go on Holiday: the same item below it, with the new text and id. Greyed when it is greyed. */
+/* After Go on Holiday: the original Bosman item and Owner Game's one-match delegation item. */
 void holiday_widget_after(void)
 {
-    static uint32_t text;
-    if (!text) text = rt_alloc_str("Holiday until next match");
+    static uint32_t next_text, delegate_text, cancel_text;
+    if (!next_text) next_text = rt_alloc_str("Holiday until next match");
+    if (!delegate_text) delegate_text = rt_alloc_str("Let Manager Handle Next Match");
+    if (!cancel_text) cancel_text = rt_alloc_str("Cancel Manager Match Delegation");
+
     uint32_t args[18];
     memcpy(args, item_args, sizeof args);
-    args[13] = text;
+    args[13] = next_text;
     if (args[15] == HOLIDAY_ID) args[15] = NEXT_MATCH_ID;
     uint32_t eax = cpu.eax;
+    call_this(0x55f990u, item_display, 18, args);
+
+    memcpy(args, item_args, sizeof args);
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    args[13] = slot >= 0 && delegated_fixture[slot] ? cancel_text : delegate_text;
+    if (args[15] == HOLIDAY_ID) args[15] = DELEGATE_MATCH_ID;
     call_this(0x55f990u, item_display, 18, args);
     cpu.eax = eax;
 }
 
-static void message(const char *text)
+static void message_title(const char *title, const char *text)
 {
     Cpu saved = cpu;
-    uint32_t args[3] = {rt_alloc_str("Holiday until next match"), rt_alloc_str(text), 0};
+    uint32_t args[3] = {rt_alloc_str(title), rt_alloc_str(text), 0};
     rt_callback(MESSAGE_BOX, 3, args);
     cpu = saved;
     rt_free(args[0]);
     rt_free(args[1]);
+}
+
+static void message(const char *text)
+{
+    message_title("Holiday until next match", text);
+}
+
+static void delegate_message(const char *text)
+{
+    message_title("Owner Game - Matchday", text);
 }
 
 void o_007615d0(void);
@@ -183,6 +314,30 @@ RT_WRAP(007615d0, side_bar_input)
             rt_ret_cdecl((uint32_t)-4);
             return;
         }
+        if (id == DELEGATE_MATCH_ID) {
+            uint32_t manager = current_manager();
+            int slot = human_slot(manager);
+            if (slot >= 0 && delegated_fixture[slot]) {
+                if (delegated_started[slot]) {
+                    delegate_message("The manager is already handling this match. Control returns automatically after the result.");
+                } else {
+                    delegate_restore_and_clear(slot, manager, 0);
+                    delegate_message("Delegation cancelled. You will attend and manage the match normally.");
+                }
+            } else {
+                int armed = manager ? delegate_arm(manager) : -1;
+                if (armed == 1)
+                    delegate_message("Your manager will handle the next first-team match. CM will simulate it normally and return control after the result.");
+                else if (armed == -2)
+                    delegate_message("You are already on holiday. Return from holiday before using one-match delegation.");
+                else if (armed == 0)
+                    delegate_message("Your club has no first-team match in the next 60 days.");
+                else
+                    delegate_message("No active human club is available for match delegation.");
+            }
+            rt_ret_cdecl((uint32_t)-4);
+            return;
+        }
     }
     o_007615d0();
 }
@@ -205,6 +360,33 @@ void holiday_next_turn(void)
 {
     uint32_t manager = current_manager();
     int slot = human_slot(manager);
+
+    /* Owner Game one-match delegation runs first. While armed but not yet on holiday, normal human turns
+     * continue. The day before the target fixture, native holiday is switched on. After CM writes the
+     * result byte, native holiday is switched off before the next screen is built. */
+    if (slot >= 0 && delegated_fixture[slot]) {
+        if (!delegate_context_matches(slot, manager)) {
+            delegate_clear(slot);       /* a different save/manager/club: never carry runtime state across */
+        } else {
+            uint32_t fixture = delegated_fixture[slot];
+            uint32_t rec = record(slot);
+            int played = (int8_t)g_mem[fixture + 0x43] != -1;
+            if (played) {
+                delegate_restore_and_clear(slot, manager, delegated_started[slot] && rd32(g_mem, rec + ON_HOLIDAY));
+                fprintf(stderr, "owner-game: delegated match complete; control returned to human %d\n", slot);
+            } else if (delegated_started[slot]) {
+                if (!rd32(g_mem, rec + ON_HOLIDAY)) {
+                    /* The user manually returned from holiday: honour that as an override and restore settings. */
+                    delegate_restore_and_clear(slot, manager, 0);
+                    fprintf(stderr, "owner-game: delegated match cancelled by manual return for human %d\n", slot);
+                }
+            } else {
+                int today = serial((int16_t)rd16(g_mem, GAME_DAY), (int16_t)rd16(g_mem, GAME_DAY + 2));
+                if (fixture_serial(fixture) <= today + 1) delegate_start(slot, manager);
+            }
+        }
+    }
+
     if (slot < 0 || !marked[slot]) return;
     uint32_t rec = record(slot);
     if (!rd32(g_mem, rec + ON_HOLIDAY)) { marked[slot] = 0; return; }
