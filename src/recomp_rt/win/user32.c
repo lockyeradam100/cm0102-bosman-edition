@@ -511,7 +511,7 @@ static void owner_game_overview(void)
     char state[2048] = {0};
     if (!win_user_dir[0]) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game",
-            "Owner Game is installed, but its save folder is not ready yet.\\n"
+            "Owner Game is installed, but its save folder is not ready yet.\n"
             "Load your Arsenal career and advance one day, then try F12 again.", window);
         return;
     }
@@ -522,27 +522,27 @@ static void owner_game_overview(void)
         state[n] = 0;
         fclose(fp);
     }
-    const char *name_at = strstr(state, "\\"club_name\\": \\"");
-    const char *date_at = strstr(state, "\\"date\\": \\"");
-    const char *balance_at = strstr(state, "\\"balance\\": ");
+    const char *name_at = strstr(state, "\"club_name\": \"");
+    const char *date_at = strstr(state, "\"date\": \"");
+    const char *balance_at = strstr(state, "\"balance\": ");
     char club[96] = "Not yet available";
     char date[16] = "-";
     long long balance = 0;
-    if (name_at) sscanf(name_at, "\\"club_name\\": \\"%95[^\\"]", club);
-    if (date_at) sscanf(date_at, "\\"date\\": \\"%15[^\\"]", date);
-    if (balance_at) sscanf(balance_at, "\\"balance\\": %lld", &balance);
+    if (name_at) sscanf(name_at, "\"club_name\": \"%95[^\"]", club);
+    if (date_at) sscanf(date_at, "\"date\": \"%15[^\"]", date);
+    if (balance_at) sscanf(balance_at, "\"balance\": %lld", &balance);
     if (name_at) {
         snprintf(message, sizeof message,
-            "Club: %s\\nGame date: %s\\nClub balance: GBP %lld\\n\\n"
-            "Owner Game bridge: connected\\n\\n"
+            "Club: %s\nGame date: %s\nClub balance: GBP %lld\n\n"
+            "Owner Game bridge: connected\n\n"
             "This is the first read-only Owner Overview. Match delegation, "
-            "owner actions and the full dashboard are still in development.\\n\\n"
+            "owner actions and the full dashboard are still in development.\n\n"
             "Your existing game and save are unchanged.", club, date, balance);
     } else {
         snprintf(message, sizeof message,
-            "Owner Game bridge is installed.\\n\\n"
+            "Owner Game bridge is installed.\n\n"
             "The club snapshot is not ready yet. Load your saved career, "
-            "advance one in-game day and press F12 again.\\n\\n"
+            "advance one in-game day and press F12 again.\n\n"
             "Your existing game and save are unchanged.");
     }
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game - Owner Overview",
