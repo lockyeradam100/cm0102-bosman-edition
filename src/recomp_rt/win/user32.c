@@ -501,6 +501,54 @@ static void end_click_for_key(void)
     post_mouse(WM_MOUSEMOVE, key_click.real_x, key_click.real_y);
 }
 
+/* First visible Owner Game control surface. The bridge writes a state snapshot
+ * after each human turn; reading it here avoids re-entering the game from SDL's
+ * keyboard event loop. It is a read-only overview, not yet a gameplay menu. */
+static void owner_game_overview(void)
+{
+    char message[1024];
+    char path[1200];
+    char state[2048] = {0};
+    if (!win_user_dir[0]) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game",
+            "Owner Game is installed, but its save folder is not ready yet.\\n"
+            "Load your Arsenal career and advance one day, then try F12 again.", window);
+        return;
+    }
+    snprintf(path, sizeof path, "%s/owner-game-state.json", win_user_dir);
+    FILE *fp = fopen(path, "rb");
+    if (fp) {
+        size_t n = fread(state, 1, sizeof state - 1, fp);
+        state[n] = 0;
+        fclose(fp);
+    }
+    const char *name_at = strstr(state, "\\"club_name\\": \\"");
+    const char *date_at = strstr(state, "\\"date\\": \\"");
+    const char *balance_at = strstr(state, "\\"balance\\": ");
+    char club[96] = "Not yet available";
+    char date[16] = "-";
+    long long balance = 0;
+    if (name_at) sscanf(name_at, "\\"club_name\\": \\"%95[^\\"]", club);
+    if (date_at) sscanf(date_at, "\\"date\\": \\"%15[^\\"]", date);
+    if (balance_at) sscanf(balance_at, "\\"balance\\": %lld", &balance);
+    if (name_at) {
+        snprintf(message, sizeof message,
+            "Club: %s\\nGame date: %s\\nClub balance: GBP %lld\\n\\n"
+            "Owner Game bridge: connected\\n\\n"
+            "This is the first read-only Owner Overview. Match delegation, "
+            "owner actions and the full dashboard are still in development.\\n\\n"
+            "Your existing game and save are unchanged.", club, date, balance);
+    } else {
+        snprintf(message, sizeof message,
+            "Owner Game bridge is installed.\\n\\n"
+            "The club snapshot is not ready yet. Load your saved career, "
+            "advance one in-game day and press F12 again.\\n\\n"
+            "Your existing game and save are unchanged.");
+    }
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game - Owner Overview",
+                             message, window);
+}
+
 /* The keys of the options. Returns 1 when the key did its work; the game then does not get it, nor its repeats
  * and release. Returns 2 for the display report key: the game does not get the press, and nothing is swallowed. */
 static int shortcut_key(SDL_Keycode k, Uint16 mod)
@@ -520,6 +568,8 @@ static int shortcut_key(SDL_Keycode k, Uint16 mod)
         full = k == SDLK_f && (mod & KMOD_GUI);
     }
     int plain = !(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI | KMOD_SHIFT));
+    /* Available even when standard game shortcuts are disabled. */
+    if (k == SDLK_F12 && plain) { owner_game_overview(); return 1; }
     /* The display report key works with the option shortcuts off too: a player with a broken picture needs it. */
     if (k == SDLK_d && (mod & KMOD_SHIFT) && (mod & (windows ? KMOD_CTRL : KMOD_GUI)) && !(mod & KMOD_ALT)) {
         fprintf(stderr, "recomp: key display report\n");
