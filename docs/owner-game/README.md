@@ -7,6 +7,7 @@
 3. [DELIVERY_PLAN.md](DELIVERY_PLAN.md) — stages P0–P8, their dependencies, integrated acceptance gates and the football-first release policy.
 4. [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) — current implementation evidence, known limitations and high-risk blockers.
 5. [DECISION_REGISTER.md](DECISION_REGISTER.md) — settled choices, technical defaults and real unknowns.
+6. [IMPLEMENTATION_BACKLOG.md](IMPLEMENTATION_BACKLOG.md) — the tracked, evidence-based implementation queue (GitHub Issues are disabled).
 
 ## Current status
 - **Mac integration:** Arsenal owner status and F12 Overview have been observed working in the packaged app.
