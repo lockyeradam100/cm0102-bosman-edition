@@ -501,18 +501,19 @@ static void end_click_for_key(void)
     post_mouse(WM_MOUSEMOVE, key_click.real_x, key_click.real_y);
 }
 
-/* First visible Owner Game control surface. The bridge writes a state snapshot
- * after each human turn; reading it here avoids re-entering the game from SDL's
- * keyboard event loop. It is a read-only overview, not yet a gameplay menu. */
+/* The first interactive owner decision: invest GBP 5m in the human club.
+ * A command is queued for the bridge to validate and apply on the next
+ * human turn. Do not write game memory from the SDL keyboard event loop. */
 static void owner_game_overview(void)
 {
-    char message[1024];
-    char path[1200];
-    char state[2048] = {0};
+    char message[1024], path[1200], command_path[1200];
+    char state[2048] = {0}, club[96] = "", date[16] = "-";
+    char session[17] = "";
+    int club_id = -1;
+    long long balance = 0;
     if (!win_user_dir[0]) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game",
-            "Owner Game is installed, but its save folder is not ready yet.\n"
-            "Load your Arsenal career and advance one day, then try F12 again.", window);
+            "The save folder is not ready. Load your career and advance one day.", window);
         return;
     }
     snprintf(path, sizeof path, "%s/owner-game-state.json", win_user_dir);
@@ -525,28 +526,76 @@ static void owner_game_overview(void)
     const char *name_at = strstr(state, "\"club_name\": \"");
     const char *date_at = strstr(state, "\"date\": \"");
     const char *balance_at = strstr(state, "\"balance\": ");
-    char club[96] = "Not yet available";
-    char date[16] = "-";
-    long long balance = 0;
+    const char *session_at = strstr(state, "\"session\": \"");
+    const char *id_at = strstr(state, "\"club_id\": ");
     if (name_at) sscanf(name_at, "\"club_name\": \"%95[^\"]", club);
     if (date_at) sscanf(date_at, "\"date\": \"%15[^\"]", date);
     if (balance_at) sscanf(balance_at, "\"balance\": %lld", &balance);
-    if (name_at) {
-        snprintf(message, sizeof message,
-            "Club: %s\nGame date: %s\nClub balance: GBP %lld\n\n"
-            "Owner Game bridge: connected\n\n"
-            "This is the first read-only Owner Overview. Match delegation, "
-            "owner actions and the full dashboard are still in development.\n\n"
-            "Your existing game and save are unchanged.", club, date, balance);
-    } else {
-        snprintf(message, sizeof message,
-            "Owner Game bridge is installed.\n\n"
-            "The club snapshot is not ready yet. Load your saved career, "
-            "advance one in-game day and press F12 again.\n\n"
-            "Your existing game and save are unchanged.");
+    if (session_at) sscanf(session_at, "\"session\": \"%16[0-9a-fA-F]", session);
+    if (id_at) sscanf(id_at, "\"club_id\": %d", &club_id);
+    if (!strstr(state, "\"ready\": true") || !club[0] || strlen(session) != 16 || club_id < 0) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game",
+            "Owner Game is connected, but the club snapshot is not ready. "
+            "Continue the career for one in-game day and try again.", window);
+        return;
     }
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game - Owner Overview",
-                             message, window);
+    snprintf(message, sizeof message,
+        "CLUB: %s\nDATE: %s\nBALANCE: GBP %lld\n\n"
+        "The owner may invest GBP 5,000,000 of new capital.\n"
+        "This will change real club finances when you next Continue Game.\n\n"
+        "This is a sandbox test. It does not deduct from a personal owner wallet yet.",
+        club, date, balance);
+    const SDL_MessageBoxButtonData buttons[] = {
+        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Invest GBP 5m" },
+        { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Close" }
+    };
+    SDL_MessageBoxData box = {
+        SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Club Finance",
+        message, 2, buttons, NULL
+    };
+    int chosen = 0;
+    if (SDL_ShowMessageBox(&box, &chosen) != 0 || chosen != 1) return;
+
+    /* Protect against an unintended duplicate command and require confirmation. */
+    snprintf(command_path, sizeof command_path, "%s/owner-game-command.txt", win_user_dir);
+    fp = fopen(command_path, "rb");
+    if (fp) {
+        fclose(fp);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Owner Game",
+            "An owner decision is already pending. Continue Game first.", window);
+        return;
+    }
+    const SDL_MessageBoxButtonData confirm_buttons[] = {
+        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Confirm investment" },
+        { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel" }
+    };
+    SDL_MessageBoxData confirm = {
+        SDL_MESSAGEBOX_WARNING, window, "Confirm owner capital",
+        "Inject GBP 5,000,000 into this club?\n\n"
+        "This is a real finance change within the game, not just a display.",
+        2, confirm_buttons, NULL
+    };
+    chosen = 0;
+    if (SDL_ShowMessageBox(&confirm, &chosen) != 0 || chosen != 1) return;
+    /* The bridge rejects commands from an old session or another club. */
+    fp = fopen(command_path, "wb");
+    if (!fp) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Owner Game",
+            "Unable to queue the owner investment.", window);
+        return;
+    }
+    int wrote = fprintf(fp, "inject_cash %s %d 5000000\n", session, club_id);
+    int closed = fclose(fp);
+    if (wrote <= 0 || closed != 0) {
+        remove(command_path);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Owner Game",
+            "Unable to save the owner investment command.", window);
+        return;
+    }
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Owner Game",
+        "Investment queued. Click Continue Game to apply it, then press F12 "
+        "to view the updated club balance. Save the career to keep the change.",
+        window);
 }
 
 /* The keys of the options. Returns 1 when the key did its work; the game then does not get it, nor its repeats
