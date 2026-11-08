@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - owner-game-live-bridge
+      - owner-game-p0-integration-tests
 
 jobs:
   build-mac:
@@ -96,6 +97,14 @@ jobs:
           strings "$APP_BIN" | grep -q "owner-game-command.txt"
           ls -lh "$GITHUB_WORKSPACE"/build-owner-mac/Owner-Game-Mac-Complete.zip
           test -d "$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app/Contents/Resources/game/Data"
+
+      - name: Owner Game real Arsenal save and reload smoke
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/bridge_smoke.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
 
       - name: Save Mac build
         uses: actions/upload-artifact@v4
