@@ -8,6 +8,8 @@
 4. [CODEBASE_AUDIT.md](CODEBASE_AUDIT.md) — current implementation evidence, known limitations and high-risk blockers.
 5. [DECISION_REGISTER.md](DECISION_REGISTER.md) — settled choices, technical defaults and real unknowns.
 6. [IMPLEMENTATION_BACKLOG.md](IMPLEMENTATION_BACKLOG.md) — the tracked, evidence-based implementation queue (GitHub Issues are disabled).
+7. [FOOTBALL_PARITY_AUDIT.md](FOOTBALL_PARITY_AUDIT.md) — the 44-capability football completeness and regression gate.
+8. [Repository instructions](../../AGENTS.md) — binding guidance for subsequent coding sessions.
 
 ## Current status
 - **Mac integration:** Arsenal owner status and F12 Overview have been observed working in the packaged app.
