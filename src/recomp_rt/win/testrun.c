@@ -78,6 +78,10 @@ RT_WRAP(005cde40, human_turn)
         SDL_Quit();
         exit(0);
     }
+    /* Snapshot owner bridge before an automated save, including day-zero
+     * fixtures. Otherwise a save-after-zero test exits before the bridge
+     * has written its club/finance state. Normal turn behaviour is unchanged. */
+    owner_game_before_human_turn();
     if (save_after == -2) {
         const char *v = getenv("RECOMP_SAVE_AFTER_DAYS");
         save_after = v && *v ? atoi(v) : -1;
@@ -97,7 +101,6 @@ RT_WRAP(005cde40, human_turn)
             exit(0);
         }
     }
-    owner_game_before_human_turn();
     o_005cde40();
     if (rt_unwinding) return;
     owner_game_after_human_turn();
