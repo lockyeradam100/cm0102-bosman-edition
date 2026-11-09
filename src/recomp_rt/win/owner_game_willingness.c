@@ -11,6 +11,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define OG_PLAYER_MANAGER                    0x00b74c26u
 #define OG_PLAYER_SLOT                       0x00b77c7au
@@ -110,7 +112,9 @@ RT_WRAP(00846920, owner_game_staff_interest)
     int32_t staff_id = (staff && og_willingness_memory_ok(staff, 4))
                        ? (int32_t)rd32(g_mem, staff) : -1;
 
-    int exact_initial = human_club && club == human_club &&
+    const char *proof_mode = getenv("RECOMP_OWNER_FIGO_PROOF");
+    int exact_initial = proof_mode && !strcmp(proof_mode, "1") &&
+                        human_club && club == human_club &&
                         staff_id == OG_TEST_STAFF_ID &&
                         human_club_id == OG_TEST_CLUB_ID &&
                         return_address == OG_INITIAL_TRANSFER_INTEREST_RETURN;
