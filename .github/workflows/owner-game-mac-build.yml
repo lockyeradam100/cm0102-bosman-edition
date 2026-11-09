@@ -107,6 +107,14 @@ jobs:
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 
+      - name: Prove contract trace does not change native football saves
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/contract_trace_parity.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
+
       - name: Save Mac build
         uses: actions/upload-artifact@v4
         with:
