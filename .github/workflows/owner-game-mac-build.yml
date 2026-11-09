@@ -6,6 +6,7 @@ on:
     branches:
       - owner-game-live-bridge
       - owner-game-p0-integration-tests
+      - owner-game-contract-lifecycle
 
 jobs:
   build-mac:
