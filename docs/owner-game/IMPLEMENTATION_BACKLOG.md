@@ -31,6 +31,8 @@
 
 ## P1 — first engineering and gameplay blockers, ordered
 - [ ] P1-01 Reproduce submitted Figo/Aston Villa offer not persisting; classify native `add_contract_offer`, `remove_contract_offer`, `will_negotiate` and final decision path. No forced false rejection.
+  - Diagnostic work committed: Figo-only gameplay overrides are now off unless `RECOMP_OWNER_FIGO_PROOF=1`; opt-in `RECOMP_OWNER_CONTRACT_TRACE=1` records native add/remove and the ContractManager daily update's pending-state readback for all human-club offers (commit `b03274187304cbf1b1de6a25c7fcd7ebd64d9dbd`).
+  - **Not yet fixed:** reproduce a live submitted offer, establish the cause, verify native pending status after advancing and after save/reload, then write regression tests. No status marked DONE until those pass.
 - [ ] P1-02 Fix generic staff/player contract pending lifecycle; check 3 ordinary players, 2 staff, a contracted manager and a free agent in addition to the Figo fixture.
 - [ ] P1-03 Complete player transfers, fees, loans, free agency, renewal, release/mutual termination and compensation test scenarios.
 - [ ] P1-04 Complete manager/staff search, hire, authority and dismissal test scenarios in native football mode.
