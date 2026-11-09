@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define OG_TEST_STAFF_ID               1730
@@ -193,7 +194,9 @@ RT_WRAP(004d4660, owner_game_contract_will_negotiate)
         club_id = (int32_t)rd32(g_mem, contract + OG_CONTRACT_CLUB_ID);
     }
 
-    int exact_proof = return_address == OG_BASIC_TAB_RETURN &&
+    const char *proof_mode = getenv("RECOMP_OWNER_FIGO_PROOF");
+    int exact_proof = proof_mode && !strcmp(proof_mode, "1") &&
+                      return_address == OG_BASIC_TAB_RETURN &&
                       staff_id == OG_TEST_STAFF_ID &&
                       club_id == OG_TEST_CLUB_ID;
 
