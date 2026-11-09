@@ -80,19 +80,16 @@ def main(argv: list[str]) -> int:
         first = root / "first" / "user"
         second = root / "second" / "user"
 
-        # Existing Bosman first-start script through Arsenal's first-news screen,
-        # then choose the *native* holiday command so the game advances > 1 day
-        # and writes samesave.sav using its own save function.
+        # Native save at the initial human turn BEFORE starting a holiday.
+        # The previous test saved while on holiday, then incorrectly waited
+        # for "first-news" after reloading; the holiday resumed and advanced
+        # weeks without returning to that screen. Bosman's fixtures.make()
+        # uses the same day-zero save boundary for its reload fixtures.
         create_steps = [s for s in smoke_run.STEPS if " dump " not in s]
         create_steps = create_steps[:create_steps.index("wait first-news") + 1]
-        create_steps += [
-            "2500 click 45 165",
-            "4500 click 150 427",
-            "7000 click 705 572",
-            "180000 quit",
-        ]
+        create_steps += ["3000 quit"]
         run_game(program, game, first, create_steps,
-                 {"RECOMP_SAVE_AFTER_DAYS": "1"}, "create Arsenal and save")
+                 {"RECOMP_SAVE_AFTER_DAYS": "0"}, "create Arsenal and save (not on holiday)")
         original = snapshot(first, "fresh career")
         saved = first / smoke_run.SAVE_NAME
         if not saved.is_file() or saved.stat().st_size < 1024:
@@ -109,6 +106,8 @@ def main(argv: list[str]) -> int:
         restored = snapshot(second, "reloaded career")
         if restored["club_id"] != original["club_id"]:
             raise AssertionError("Native club ID changed after reloading the save")
+        if restored["date"] != original["date"]:
+            raise AssertionError("Native date changed across save/reload without advancing")
         if restored["balance"] != original["balance"]:
             raise AssertionError("Native club cash changed across save/reload with no transaction")
         if restored["session"] == original["session"]:
