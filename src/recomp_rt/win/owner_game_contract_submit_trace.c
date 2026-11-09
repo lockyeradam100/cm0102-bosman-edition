@@ -33,6 +33,7 @@ typedef struct {
 static OgWatchedOffer watched[OG_MAX_WATCHED];
 static size_t watched_count;
 static size_t next_replace;
+static int trace_announced;
 
 static void watch_offer(int32_t staff_id, int32_t club_id)
 {
@@ -189,7 +190,15 @@ RT_WRAP(004cca70, owner_game_trace_remove_contract_offer)
 void o_004c7ac0(void);
 RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
 {
-    if (!trace_enabled() || !watched_count) {
+    if (!trace_enabled()) {
+        o_004c7ac0();
+        return;
+    }
+    if (!trace_announced) {
+        trace_announced = 1;
+        fprintf(stderr, "owner-game: contract lifecycle trace active at native daily boundary\n");
+    }
+    if (!watched_count) {
         o_004c7ac0();
         return;
     }
