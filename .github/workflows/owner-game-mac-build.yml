@@ -8,6 +8,12 @@ on:
       - owner-game-p0-integration-tests
       - owner-game-contract-lifecycle
 
+# Later commits supersede earlier experiments on the same branch.
+# Keep the known-good live and test branches independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-mac:
     runs-on: macos-15-intel
