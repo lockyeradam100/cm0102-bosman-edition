@@ -21,6 +21,32 @@
 #define OG_STAFF_CONTRACT_STAFF   0x00u
 #define OG_STAFF_CONTRACT_CLUB    0x04u
 #define OG_TRACE_FILE             "owner-game-contract-submit.log"
+#define OG_MAX_WATCHED            96u
+
+/* Ephemeral diagnostic watchlist. No pointers or fake offer statuses are
+ * written into a football save; the engine always owns pending offers. */
+typedef struct {
+    int32_t staff_id;
+    int32_t club_id;
+} OgWatchedOffer;
+
+static OgWatchedOffer watched[OG_MAX_WATCHED];
+static size_t watched_count;
+static size_t next_replace;
+
+static void watch_offer(int32_t staff_id, int32_t club_id)
+{
+    if (staff_id < 0 || club_id < 0) return;
+    for (size_t i = 0; i < watched_count; ++i)
+        if (watched[i].staff_id == staff_id && watched[i].club_id == club_id)
+            return;
+    size_t slot = watched_count < OG_MAX_WATCHED
+                    ? watched_count++
+                    : (next_replace++ % OG_MAX_WATCHED);
+    watched[slot].staff_id = staff_id;
+    watched[slot].club_id = club_id;
+}
+
 
 static int trace_enabled(void)
 {
@@ -121,6 +147,7 @@ RT_WRAP(004cc490, owner_game_trace_add_contract_offer)
     if (rt_unwinding || !observe) return;
     uint32_t after = find_offer(manager, staff_id, club_id);
     if (rt_unwinding) return;
+    watch_offer(staff_id, club_id);
     record("native_add", caller, staff_id, club_id, before, after,
            arg4, schedule, arg6);
 }
@@ -146,6 +173,61 @@ RT_WRAP(004cca70, owner_game_trace_remove_contract_offer)
     if (rt_unwinding || !observe) return;
     uint32_t after = find_offer(manager, staff_id, club_id);
     if (rt_unwinding) return;
+    watch_offer(staff_id, club_id);
     record("native_remove", caller, staff_id, club_id, before, after,
            0, 0, 0);
+}
+
+
+/* ContractManager::daily_update(this, const Date*, char mode,
+ *                               char run_staff_pass).
+ * This is the native daily processing boundary (0x004c7ac0). Observing
+ * watched offers here proves whether CM still owns them on later dates,
+ * without inventing an acceptance or rejection. The original daily pass
+ * runs exactly once and entirely unchanged.
+ */
+void o_004c7ac0(void);
+RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
+{
+    if (!trace_enabled() || !watched_count) {
+        o_004c7ac0();
+        return;
+    }
+
+    uint32_t manager = cpu.ecx;
+    int32_t club = current_human_club_id();
+    if (!address_ok(manager, 4) || club < 0) {
+        o_004c7ac0();
+        return;
+    }
+
+    /* Snapshot only stable IDs and existence, not native pointers to offers.
+     * This protects the readback from offer-buffer reallocations during the
+     * daily contract pass. The watchlist itself is deliberately not a save. */
+    OgWatchedOffer pairs[OG_MAX_WATCHED];
+    unsigned char pending_before[OG_MAX_WATCHED];
+    size_t count = 0;
+    for (size_t i = 0; i < watched_count; ++i) {
+        if (watched[i].club_id != club) continue;
+        pairs[count] = watched[i];
+        pending_before[count] =
+            find_offer(manager, pairs[count].staff_id, club) != 0;
+        if (rt_unwinding) return;
+        ++count;
+    }
+
+    o_004c7ac0();
+    if (rt_unwinding) return;
+
+    for (size_t i = 0; i < count; ++i) {
+        uint32_t after =
+            find_offer(manager, pairs[i].staff_id, pairs[i].club_id);
+        if (rt_unwinding) return;
+        /* One daily observation per watched offer permits diagnostics to
+         * separate "never submitted", "pending for days", and
+         * "disappeared after calendar progress". The cause of disappearance
+         * remains UNCLASSIFIED until a real decision event is observed. */
+        record("native_daily_check", 0, pairs[i].staff_id, pairs[i].club_id,
+               pending_before[i], after, 0, 0, 0);
+    }
 }
