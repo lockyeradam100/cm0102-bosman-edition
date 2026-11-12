@@ -3,8 +3,11 @@
  * RECOMP_OWNER_CONTRACT_TRACE=1 enables read-only logging of native CM
  * add_contract_offer / remove_contract_offer for ANY staff or player targeted
  * by the human-controlled club, not just the previous Figo/Aston Villa proof.
- * The ContractManager remains authoritative; neither offer nor response is
- * modified here. The absence of an offer does NOT mean a player rejected it.
+ * The ContractManager remains authoritative. This diagnostic deliberately
+ * DOES NOT query ContractManager::find_contract_offer from inside mutation
+ * hooks, because nested native callbacks may alter the saved contract state.
+ * Event logs prove the native call occurred; they do NOT prove persistence,
+ * acceptance or rejection. A separate safe-point readback is required.
  */
 #include "win.h"
 #include "host.h"
@@ -14,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OG_FIND_CONTRACT_OFFER     0x004cc9e0u
 #define OG_PLAYER_MANAGER         0x00b74c26u
 #define OG_PLAYER_SLOT            0x00b77c7au
 #define OG_STAFF_CLUB             0x39u
@@ -82,24 +84,9 @@ static int32_t current_human_club_id(void)
     return (int32_t)read_u32(club);
 }
 
-static uint32_t call_this(uint32_t fn, uint32_t self, int nargs, const uint32_t *args)
-{
-    Cpu saved = cpu;
-    cpu.ecx = self;
-    uint32_t result = rt_callback(fn, nargs, args);
-    if (!rt_unwinding) cpu = saved;
-    return result;
-}
-
-static uint32_t find_offer(uint32_t manager, int32_t staff_id, int32_t club_id)
-{
-    uint32_t args[2] = {(uint32_t)staff_id, (uint32_t)club_id};
-    return call_this(OG_FIND_CONTRACT_OFFER, manager, 2, args);
-}
-
 static void record(const char *event, uint32_t caller, int32_t staff_id,
-                   int32_t club_id, uint32_t before, uint32_t after,
-                   uint32_t arg4, uint32_t schedule, uint32_t arg6)
+                   int32_t club_id, uint32_t arg4, uint32_t schedule,
+                   uint32_t arg6)
 {
     if (!win_user_dir[0]) return;
     char path[1200];
@@ -110,16 +97,15 @@ static void record(const char *event, uint32_t caller, int32_t staff_id,
     if (!file) return;
     fprintf(file,
             "%04d-%02d-%02d event=%s staff=%d club=%d caller=0x%08x "
-            "pending_before=%s pending_after=%s offer_before=0x%08x "
-            "offer_after=0x%08x arg4=%u schedule=%u arg6=%u\n",
+            "arg4=%u schedule=%u arg6=%u pending_status=unverified\n",
             year, month, day, event, staff_id, club_id, caller,
-            before ? "yes" : "no", after ? "yes" : "no", before, after,
             arg4, schedule, arg6);
     if (fflush(file) == 0) host_sync(file);
     fclose(file);
-    fprintf(stderr, "owner-game: contract %s staff=%d club=%d "
-            "pending %d->%d schedule=%u\n",
-            event, staff_id, club_id, before != 0, after != 0, schedule);
+    fprintf(stderr,
+            "owner-game: contract %s staff=%d club=%d schedule=%u "
+            "pending_status=unverified\n",
+            event, staff_id, club_id, schedule);
 }
 
 /* Native ContractManager::add_contract_offer(STAFF_CONTRACT*, ...).
@@ -131,7 +117,6 @@ RT_WRAP(004cc490, owner_game_trace_add_contract_offer)
     if (!trace_enabled()) { o_004cc490(); return; }
 
     uint32_t caller = read_u32(cpu.esp);
-    uint32_t manager = cpu.ecx;
     uint32_t offer = rt_arg(0);
     uint32_t arg4 = rt_arg(4), schedule = rt_arg(5), arg6 = rt_arg(6);
     int32_t staff_id = -1, club_id = -1;
@@ -141,15 +126,15 @@ RT_WRAP(004cc490, owner_game_trace_add_contract_offer)
     }
     int observe = staff_id >= 0 && club_id >= 0 &&
                   club_id == current_human_club_id();
-    uint32_t before = observe ? find_offer(manager, staff_id, club_id) : 0;
 
-    /* Always leave the native game responsible for handling the offer. */
+    /* Do not call find_contract_offer from inside the native mutation.
+     * Even an ostensibly read-only rt_callback can perturb the native
+     * contract manager's state or its execution context. Observe calls
+     * only. Whether a pending offer exists requires independent readback. */
     o_004cc490();
     if (rt_unwinding || !observe) return;
-    uint32_t after = find_offer(manager, staff_id, club_id);
-    if (rt_unwinding) return;
     watch_offer(staff_id, club_id);
-    record("native_add", caller, staff_id, club_id, before, after,
+    record("native_add_called", caller, staff_id, club_id,
            arg4, schedule, arg6);
 }
 
@@ -162,31 +147,24 @@ RT_WRAP(004cca70, owner_game_trace_remove_contract_offer)
     if (!trace_enabled()) { o_004cca70(); return; }
 
     uint32_t caller = read_u32(cpu.esp);
-    uint32_t manager = cpu.ecx;
     uint32_t staff = rt_arg(0), club = rt_arg(1);
     int32_t staff_id = address_ok(staff, 4) ? (int32_t)read_u32(staff) : -1;
     int32_t club_id = address_ok(club, 4) ? (int32_t)read_u32(club) : -1;
     int observe = staff_id >= 0 && club_id >= 0 &&
                   club_id == current_human_club_id();
-    uint32_t before = observe ? find_offer(manager, staff_id, club_id) : 0;
 
     o_004cca70();
     if (rt_unwinding || !observe) return;
-    uint32_t after = find_offer(manager, staff_id, club_id);
-    if (rt_unwinding) return;
     watch_offer(staff_id, club_id);
-    record("native_remove", caller, staff_id, club_id, before, after,
-           0, 0, 0);
+    record("native_remove_called", caller, staff_id, club_id, 0, 0, 0);
 }
 
 
-/* ContractManager::daily_update(this, const Date*, char mode,
- *                               char run_staff_pass).
- * This is the native daily processing boundary (0x004c7ac0). Observing
- * watched offers here proves whether CM still owns them on later dates,
- * without inventing an acceptance or rejection. The original daily pass
- * runs exactly once and entirely unchanged.
- */
+/* Observe the native daily ContractManager update without looking up offers
+ * inside its mutation loop. Doing a nested native callback from a hook can
+ * alter the contract data and violate observational parity. The daily
+ * marker only establishes that a watched offer has been through another
+ * CM day: it DOES NOT claim a pending/accepted/rejected state. */
 void o_004c7ac0(void);
 RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
 {
@@ -196,47 +174,16 @@ RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
     }
     if (!trace_announced) {
         trace_announced = 1;
-        fprintf(stderr, "owner-game: contract lifecycle trace active at native daily boundary\n");
+        fprintf(stderr,
+                "owner-game: contract lifecycle trace active at native daily boundary\n");
     }
-    if (!watched_count) {
-        o_004c7ac0();
-        return;
-    }
-
-    uint32_t manager = cpu.ecx;
-    int32_t club = current_human_club_id();
-    if (!address_ok(manager, 4) || club < 0) {
-        o_004c7ac0();
-        return;
-    }
-
-    /* Snapshot only stable IDs and existence, not native pointers to offers.
-     * This protects the readback from offer-buffer reallocations during the
-     * daily contract pass. The watchlist itself is deliberately not a save. */
-    OgWatchedOffer pairs[OG_MAX_WATCHED];
-    unsigned char pending_before[OG_MAX_WATCHED];
-    size_t count = 0;
-    for (size_t i = 0; i < watched_count; ++i) {
-        if (watched[i].club_id != club) continue;
-        pairs[count] = watched[i];
-        pending_before[count] =
-            find_offer(manager, pairs[count].staff_id, club) != 0;
-        if (rt_unwinding) return;
-        ++count;
-    }
-
     o_004c7ac0();
     if (rt_unwinding) return;
-
-    for (size_t i = 0; i < count; ++i) {
-        uint32_t after =
-            find_offer(manager, pairs[i].staff_id, pairs[i].club_id);
-        if (rt_unwinding) return;
-        /* One daily observation per watched offer permits diagnostics to
-         * separate "never submitted", "pending for days", and
-         * "disappeared after calendar progress". The cause of disappearance
-         * remains UNCLASSIFIED until a real decision event is observed. */
-        record("native_daily_check", 0, pairs[i].staff_id, pairs[i].club_id,
-               pending_before[i], after, 0, 0, 0);
+    int32_t club = current_human_club_id();
+    if (club < 0) return;
+    for (size_t i = 0; i < watched_count; ++i) {
+        if (watched[i].club_id != club) continue;
+        record("native_daily_pass", 0, watched[i].staff_id,
+               watched[i].club_id, 0, 0, 0);
     }
 }
