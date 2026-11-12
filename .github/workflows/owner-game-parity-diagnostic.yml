@@ -1,0 +1,47 @@
+name: Owner Game Fast Contract Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-contract-lifecycle
+    paths:
+      - tests/owner_game/contract_trace_parity.py
+      - .github/workflows/owner-game-parity-diagnostic.yml
+
+concurrency:
+  group: owner-game-fast-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-contract-parity:
+    runs-on: macos-15-intel
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout diagnostic script
+        uses: actions/checkout@v4
+
+      - name: Reuse previously successful native Mac build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/og-artifact" "$RUNNER_TEMP/og-app"
+          gh run download 42695723718 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name Owner-Game-Bosman-Mac \
+            --dir "$RUNNER_TEMP/og-artifact"
+          test -s "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip"
+          ditto -x -k "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip" "$RUNNER_TEMP/og-app"
+          test -x "$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app/Contents/MacOS/cm0102_recomp"
+
+      - name: Diagnose contract parity against saved Mac executable
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/contract_trace_parity.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
