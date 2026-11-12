@@ -65,6 +65,34 @@ def run_case(program: str, game: str, root: Path, label: str, enable_trace: bool
     if (marker in result.stderr) != enable_trace:
         raise AssertionError(f"{label}: unexpected contract tracing state "
                              f"(expected active={enable_trace})")
+    # A passing "trace on/off identical" test is vacuous if the fixture never
+    # actually touched the human club's contract path. Require at least one
+    # real native offer and subsequent daily update before calling it a pass.
+    if enable_trace:
+        import re
+        adds = re.findall(
+            r"owner-game: contract native_add_called staff=(\\d+) club=(\\d+)",
+            result.stderr
+        )
+        daily = re.findall(
+            r"owner-game: contract native_daily_pass staff=(\\d+) club=(\\d+)",
+            result.stderr
+        )
+        if not adds:
+            raise AssertionError(
+                f"{label}: no native human-club contract offer was observed. "
+                "Parity alone is not an offer-lifecycle test."
+            )
+        covered = set(adds) & set(daily)
+        if not covered:
+            raise AssertionError(
+                f"{label}: recorded offer add events {adds[:6]} but no "
+                "subsequent daily contract pass for any same staff/club."
+            )
+        print(f"PASS {label}: observed {len(adds)} native offer additions, "
+              f"{len(daily)} daily observations; "
+              f"{len(covered)} staff/club pairs passed both stages",
+              flush=True)
     if "bosman_season.dat" in smoke_run.save_parts(str(saved)):
         raise AssertionError(
             f"{label}: variable historical-season part unexpectedly present in "
