@@ -71,11 +71,11 @@ def run_case(program: str, game: str, root: Path, label: str, enable_trace: bool
     if enable_trace:
         import re
         adds = re.findall(
-            r"owner-game: contract native_add_called staff=(\\d+) club=(\\d+)",
+            r"owner-game: contract native_add_called staff=(\d+) club=(\d+)",
             result.stderr
         )
         daily = re.findall(
-            r"owner-game: contract native_daily_pass staff=(\\d+) club=(\\d+)",
+            r"owner-game: contract native_daily_pass staff=(\d+) club=(\d+)",
             result.stderr
         )
         if not adds:
