@@ -3,6 +3,8 @@
 
 The diagnostic must be observational: same database, fixed random seed,
 identical clicks and game days must produce the same binary native save.
+First compare two trace-disabled controls to detect baseline nondeterminism;
+report changed native save parts without ignoring any differences.
 Also verifies that the ContractManager native DAILY hook really executed,
 rather than passing because trace code was never reached.
 
@@ -12,7 +14,6 @@ Uses completely temporary RECOMP_USER_DIR locations. Does not touch player
 saves. This is a compatibility regression, not a submitted-offer acceptance
 or full contract persistence test.
 """
-import concurrent.futures
 import hashlib
 import os
 from pathlib import Path
@@ -26,8 +27,7 @@ import fixtures  # noqa: E402
 import smoke_run  # noqa: E402
 
 
-def run_case(program: str, game: str, root: Path, enable_trace: bool):
-    label = "trace-on" if enable_trace else "trace-off"
+def run_case(program: str, game: str, root: Path, label: str, enable_trace: bool):
     user = root / label / "user"
     user.mkdir(parents=True)
     fixtures.write_settings(str(user), "classic", [("faster_days", "on")])
@@ -57,7 +57,7 @@ def run_case(program: str, game: str, root: Path, enable_trace: bool):
     if (marker in result.stderr) != enable_trace:
         raise AssertionError(f"{label}: unexpected contract tracing state "
                              f"(expected active={enable_trace})")
-    return label, hashlib.sha256(saved.read_bytes()).hexdigest(), saved.stat().st_size
+    return label, str(saved), hashlib.sha256(saved.read_bytes()).hexdigest(), saved.stat().st_size, result.stderr
 
 
 def main(args):
@@ -71,19 +71,53 @@ def main(args):
 
     with tempfile.TemporaryDirectory(prefix="owner-contract-parity-") as folder:
         root = Path(folder)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [
-                pool.submit(run_case, program, game, root, trace)
-                for trace in (False, True)
-            ]
-            results = [f.result() for f in futures]
+        # Separate native control runs expose fixture nondeterminism. Serial
+        # execution removes any CPU scheduling interaction between processes.
+        off_a = run_case(program, game, root, "trace-off-a", False)
+        off_b = run_case(program, game, root, "trace-off-b", False)
+        on = run_case(program, game, root, "trace-on", True)
+        for label, _, digest, size, _ in (off_a, off_b, on):
+            print(f"PASS {label}: real CM save {size} bytes, sha256 {digest}", flush=True)
 
-        for label, digest, size in results:
-            print(f"PASS {label}: real CM save {size} bytes, sha256 {digest}")
-        if results[0][1] != results[1][1]:
-            raise AssertionError("Native football saved state CHANGED with "
-                                 "read-only contract lifecycle tracing enabled")
-        print("PASS native contract trace is observational: identical full saves")
+        def explain_diff(a, b):
+            a_parts = smoke_run.save_parts(a[1])
+            b_parts = smoke_run.save_parts(b[1])
+            differences = sorted(k for k in set(a_parts) | set(b_parts)
+                                 if a_parts.get(k) != b_parts.get(k))
+            print(f"PART DIFF {a[0]} vs {b[0]}: "
+                  + (", ".join(differences) or "file header only"), flush=True)
+            for name in differences[:20]:
+                left, right = a_parts.get(name), b_parts.get(name)
+                print(f"  {name}: "
+                      f"stored bytes {len(left[0]) if left else 'MISSING'} -> "
+                      f"{len(right[0]) if right else 'MISSING'}, "
+                      f"unpacked {left[1] if left else 'MISSING'} -> "
+                      f"{right[1] if right else 'MISSING'}", flush=True)
+            return differences
+
+        if off_a[2] != off_b[2]:
+            explain_diff(off_a, off_b)
+            raise AssertionError(
+                "BASELINE NON-DETERMINISM: two runs with tracing disabled "
+                "already produce different native saves. Stabilise the "
+                "fixture before attributing changes to diagnostics."
+            )
+        print("PASS control repeatability: two trace-disabled native saves identical",
+              flush=True)
+
+        if off_a[2] != on[2]:
+            explain_diff(off_a, on)
+            trace_lines = [line for line in on[4].splitlines()
+                           if "owner-game: contract" in line]
+            print(f"TRACE EVENTS ({len(trace_lines)} total): "
+                  + "; ".join(trace_lines[-12:]), flush=True)
+            raise AssertionError(
+                "CONTRACT TRACE CHANGED native saved state (controls identical). "
+                "Do not ship until the changed save parts are explained."
+            )
+        print("PASS native contract trace is observational: identical complete saves",
+              flush=True)
+
     return 0
 
 
