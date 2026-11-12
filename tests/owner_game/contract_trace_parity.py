@@ -3,8 +3,9 @@
 
 The diagnostic must be observational: same database, fixed random seed,
 identical clicks and game days must produce the same binary native save.
-First compare two trace-disabled controls to detect baseline nondeterminism;
-report changed native save parts without ignoring any differences.
+Use 2001's unchanging rules so the separately generated historical news/name
+season part is absent; still compare two trace-disabled controls and then
+trace-enabled native saves byte for byte, without ignoring any differences.
 Also verifies that the ContractManager native DAILY hook really executed,
 rather than passing because trace code was never reached.
 
@@ -30,7 +31,14 @@ import smoke_run  # noqa: E402
 def run_case(program: str, game: str, root: Path, label: str, enable_trace: bool):
     user = root / label / "user"
     user.mkdir(parents=True)
-    fixtures.write_settings(str(user), "classic", [("faster_days", "on")])
+    # Fix the native 2001 rule set for the contract-isolation test. When
+    # historical changing_rules is on, bosman_season.dat includes variable
+    # generated news/name text even for two TRACE-OFF controls. That is a
+    # separate historical-world reproducibility issue, not a contract change.
+    # With baseline rules off, season.c::part_needed() omits that part and we
+    # can require an exact byte-for-byte native-save comparison.
+    fixtures.write_settings(str(user), "classic",
+                            [("faster_days", "on"), ("changing_rules", "off")])
 
     # The original Bosman smoke fixture: create Arsenal 2001 and use native
     # Go on Holiday to let CM simulate five days of real club activity.
@@ -57,6 +65,11 @@ def run_case(program: str, game: str, root: Path, label: str, enable_trace: bool
     if (marker in result.stderr) != enable_trace:
         raise AssertionError(f"{label}: unexpected contract tracing state "
                              f"(expected active={enable_trace})")
+    if "bosman_season.dat" in smoke_run.save_parts(str(saved)):
+        raise AssertionError(
+            f"{label}: variable historical-season part unexpectedly present in "
+            "baseline 2001 contract parity fixture"
+        )
     return label, str(saved), hashlib.sha256(saved.read_bytes()).hexdigest(), saved.stat().st_size, result.stderr
 
 
