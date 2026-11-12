@@ -1,0 +1,43 @@
+name: Owner Game Native Offer Save/Reload
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-offer-roundtrip
+
+concurrency:
+  group: owner-game-offer-roundtrip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offer-roundtrip:
+    runs-on: macos-15-intel
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout owner-game offer test
+        uses: actions/checkout@v4
+
+      - name: Download last fully verified Mac game
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/og-artifact" "$RUNNER_TEMP/og-app"
+          gh run download 43223893165 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name Owner-Game-Bosman-Mac \
+            --dir "$RUNNER_TEMP/og-artifact"
+          test -s "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip"
+          ditto -x -k "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip" "$RUNNER_TEMP/og-app"
+          test -x "$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app/Contents/MacOS/cm0102_recomp"
+
+      - name: Native Arsenal contract offer, save and reload
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/offer_roundtrip.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
