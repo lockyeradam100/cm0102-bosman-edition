@@ -1,0 +1,51 @@
+name: Owner Game Native Pending Offer UI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-offer-roundtrip
+    paths:
+      - tests/owner_game/offer_pending_menu.py
+      - .github/workflows/owner-game-offer-pending-ui.yml
+
+concurrency:
+  group: owner-game-pending-offer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect-pending:
+    runs-on: macos-15-intel
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout game tests
+        uses: actions/checkout@v4
+      - name: Download verified Mac executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/og-artifact" "$RUNNER_TEMP/og-app"
+          gh run download 43223893165 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name Owner-Game-Bosman-Mac \
+            --dir "$RUNNER_TEMP/og-artifact"
+          ditto -x -k "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip" "$RUNNER_TEMP/og-app"
+      - name: Inspect Seaman pending contract menu after fresh-process reload
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/offer_pending_menu.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game" \
+            "$RUNNER_TEMP/pending-ui"
+      - name: Keep pending contract menu evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Pending-Seaman-Menu
+          path: ${{ runner.temp }}/pending-ui/
+          if-no-files-found: warn
+          retention-days: 10
