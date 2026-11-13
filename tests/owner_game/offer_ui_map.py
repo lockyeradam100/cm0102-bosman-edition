@@ -53,7 +53,9 @@ def main(argv):
             "1500 dump {d}/06-contract-terms.bmp",
             "3500 click 705 573",           # Offer via CM, not a fabricated contract
             "4500 dump {d}/07-offer-confirmation.bmp",
-            "7000 quit",
+            "6500 click 705 573",           # Yes: submit real £19.5k pw Seaman offer
+            "8500 dump {d}/08-after-offer-submitted.bmp",
+            "11000 quit",
         ]
         result, duration = fixtures.run(
             program, game, "classic", str(user),
@@ -68,16 +70,34 @@ def main(argv):
             raise AssertionError(f"UI mapping failed (exit {result.returncode}); "
                                  f"{result.stderr[-1500:]}")
         shots = sorted(Path(out).glob("*.bmp"))
-        if len(shots) != 7:
+        if len(shots) != 8:
             raise AssertionError(
-                f"Expected squad, profile, action, role, selected role, terms and offer-confirmation dumps; "
+                f"Expected all eight native stages through final Yes and post-submission; "
                 f"got {[p.name for p in shots]}. See native screen log."
             )
+        # This is the first true submission gate: the actual CM engine must
+        # call ContractManager::add_contract_offer for the human Arsenal club.
+        # Seeing a confirmation dialog without submitting is not a pass.
+        import re
+        added = re.findall(
+            r"owner-game: contract native_add_called staff=(\d+) club=(\d+)",
+            result.stderr,
+        )
+        arsenal = [pair for pair in added if pair[1] == "362"]
+        if not arsenal:
+            raise AssertionError(
+                "Clicked Yes but CM did not register a native Arsenal "
+                "contract offer: " + str(added[-5:]) + "\n"
+                + result.stderr[-2300:]
+            )
+        print("PASS native Arsenal contract submission: "
+              + ", ".join("staff " + sid for sid, _ in arsenal), flush=True)
+
         screen_log = [
             line for line in result.stderr.splitlines()
             if "recomp: screen " in line or "recomp: script " in line
         ]
-        print(f"PASS mapped 7 native player UI screens after {duration:.1f}s",
+        print(f"PASS mapped 8 native player UI screens after {duration:.1f}s",
               flush=True)
         print("\n".join(screen_log[-25:]), flush=True)
     return 0
