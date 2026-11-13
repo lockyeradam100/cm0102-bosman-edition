@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Owner Game P1 native contract save/reload test (isolated Mac test career).
+"""Owner Game P1: REAL human contract offer -> native .sav -> reload -> re-save.
 
-The *native* engine must create at least one contract offer while Arsenal's
-manager is holidaying, save the career, and reload it in a distinct process.
-The unloaded/reloaded state must have the exact same CM game date, human club,
-and decoded contract.dat bytes.
+A fresh Arsenal manager deliberately offers goalkeeper David Seaman the
+ordinary terms shown by Championship Manager's native contract interface.
+The scripted clicks select his role, click Offer, then confirm YES. The game
+must call ContractManager::add_contract_offer(staff 6528, Arsenal club 362),
+advance one actual game day, and save its real contract.dat.
 
-This is a real native offer + save/reload integrity gate. It does NOT yet
-certify the separate GUI-submitted Figo offer or acceptance/rejection outcome.
-Nothing is injected into a player's contract and no personal saves are used.
+Then a distinct native process reloads exactly that .sav and re-saves at its
+first human turn with no football action or owner command. The game date,
+club ID, and decoded contract.dat MUST be identical.
 
-Usage:
-    python3 tests/owner_game/offer_roundtrip.py <cm0102_recomp> <game directory>
+This does not claim that a reply was received or that the offer was accepted:
+those are subsequent native resolver / response tests. The test never
+touches an existing player career and does not create fictitious offers.
+
+Usage: offer_roundtrip.py <native executable> <game directory>
 """
 import hashlib
 import json
@@ -31,130 +35,156 @@ import fixtures  # noqa: E402
 import smoke_run  # noqa: E402
 from savfile import Sav  # noqa: E402
 
-ADD = re.compile(r"owner-game: contract native_add_called staff=(\d+) club=(\d+)")
-DAILY = re.compile(r"owner-game: contract native_daily_pass staff=(\d+) club=(\d+)")
+NATIVE_ADD = re.compile(
+    r"owner-game: contract native_add_called staff=(\d+) club=(\d+)"
+)
+SEAMAN_STAFF_ID = "6528"
+ARSENAL_CLUB_ID = "362"
 
 
-def run_native(program: str, game: str, user: Path, steps: list[str],
-               env: dict[str, str], stage: str) -> str:
+def run_native(program: str, game: str, user: Path,
+               steps: list[str], env: dict[str, str], label: str) -> str:
     user.mkdir(parents=True, exist_ok=True)
     fixtures.write_settings(str(user), "classic", [
-        ("faster_days", "on"), ("changing_rules", "off")
+        ("faster_days", "on"),
+        ("changing_rules", "off"),
     ])
     result, elapsed = fixtures.run(
         program, game, "classic", str(user),
         smoke_run.scaled_steps("classic", str(user), steps),
-        env, timeout=900
+        env, timeout=900,
     )
     if result.returncode:
-        raise AssertionError(
-            f"{stage}: process exited {result.returncode} in {elapsed:.1f}s\n"
-            + result.stderr[-3500:]
-        )
-    if "recomp: saved" not in result.stderr:
-        raise AssertionError(f"{stage}: no native save confirmation\n"
+        raise AssertionError(f"{label}: native executable exit "
+                             f"{result.returncode} after {elapsed:.1f}s\n"
                              + result.stderr[-3500:])
+    if "recomp: saved" not in result.stderr:
+        raise AssertionError(f"{label}: native .sav was not written\n"
+                             + result.stderr[-3500:])
+    print(f"PASS {label}: native CM save written after {elapsed:.1f}s", flush=True)
     return result.stderr
 
 
-def owner_state(user: Path, stage: str) -> dict:
-    path = user / "owner-game-state.json"
-    if not path.is_file():
-        raise AssertionError(f"{stage}: no owner bridge state")
-    state = json.loads(path.read_text(encoding="utf-8"))
-    if state.get("ready") is not True or state.get("club_name") != "Arsenal":
-        raise AssertionError(f"{stage}: game not an active Arsenal career: {state}")
-    return state
-
-
-def contract_data(user: Path, stage: str) -> bytes:
-    path = user / smoke_run.SAVE_NAME
-    if not path.is_file() or path.stat().st_size < 1024:
-        raise AssertionError(f"{stage}: native .sav missing or empty")
-    data = Sav(str(path)).read_member("contract.dat")
-    if not data:
-        raise AssertionError(f"{stage}: native contract.dat is empty")
+def owner_state(user: Path, label: str) -> dict:
+    p = user / "owner-game-state.json"
+    if not p.is_file():
+        raise AssertionError(f"{label}: missing native Owner Game bridge state")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    if data.get("ready") is not True or data.get("club_name") != "Arsenal":
+        raise AssertionError(f"{label}: wrong career or bridge not ready: {data}")
+    if str(data.get("club_id")) != ARSENAL_CLUB_ID:
+        raise AssertionError(f"{label}: not the real Arsenal club: {data}")
     return data
 
 
-def main(args):
-    if len(args) != 3:
+def native_contracts(user: Path, label: str) -> bytes:
+    saved = user / smoke_run.SAVE_NAME
+    if not saved.is_file() or saved.stat().st_size < 1024:
+        raise AssertionError(f"{label}: no native career saved")
+    data = Sav(str(saved)).read_member("contract.dat")
+    if not data:
+        raise AssertionError(f"{label}: missing native contract manager data")
+    return data
+
+
+def offer_steps() -> list[str]:
+    steps = [s for s in smoke_run.STEPS if " dump " not in s]
+    steps = steps[:steps.index("wait first-news") + 1]
+    return steps + [
+        "1200 click 45 165",          # Manager menu
+        "3000 click 150 156",         # Arsenal squad
+        "wait screen:0x454900",
+        "2000 click 210 234",         # David Seaman's native profile
+        "wait screen:0x870700",
+        "1800 click 722 14",          # Action dropdown
+        "wait popup",
+        "1800 click 690 80",          # Offer New Contract
+        "4800 click 272 216",         # Important first-team player
+        "7500 click 705 573",         # Set Role At Club
+        "wait screen:0x4deac0",
+        "3500 click 705 573",         # Offer Contract (CM's demands)
+        "6500 click 705 573",         # Yes, genuinely submit offer
+        "8500 click 45 115",          # Continue Game: advance one real day
+        "180000 quit",                # Fails safely if native autosave not made
+    ]
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 3:
         print(__doc__)
         return 2
-    program, game = map(os.path.abspath, args[1:])
+    program, game = map(os.path.abspath, argv[1:])
     if not os.path.isfile(program) or not os.path.isdir(game):
-        raise AssertionError("pass existing native executable and game directory")
+        raise AssertionError("Missing native game binary or packaged game directory")
 
-    with tempfile.TemporaryDirectory(prefix="owner-game-native-offer-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="owner-game-real-offer-roundtrip-") as tmp:
         root = Path(tmp)
-        before_dir = root / "before" / "user"
-        after_dir = root / "after" / "user"
+        first = root / "new" / "user"
+        second = root / "reloaded" / "user"
 
-        # Start a NEW scripted Arsenal career; the native assistant handles
-        # first-team contracts while the human manager is on holiday.
-        create_steps = [s for s in smoke_run.STEPS if " dump " not in s]
-        create_log = run_native(
-            program, game, before_dir, create_steps,
+        # One-day delayed native autosave, after the real offer was submitted.
+        first_log = run_native(
+            program, game, first, offer_steps(),
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
-             "RECOMP_SAVE_AFTER_DAYS": "5"},
-            "native Arsenal offer and save"
+             "RECOMP_SAVE_AFTER_DAYS": "1"},
+            "submit Seaman offer, advance one game day and save",
         )
-        adds = set(ADD.findall(create_log))
-        days = set(DAILY.findall(create_log))
-        observed = adds & days
-        if not observed:
+        offered = set(NATIVE_ADD.findall(first_log))
+        if (SEAMAN_STAFF_ID, ARSENAL_CLUB_ID) not in offered:
             raise AssertionError(
-                f"native game did not produce a human-club offer which "
-                f"survived through at least one daily update; "
-                f"added={sorted(adds)[:8]}, daily={sorted(days)[:8]}\n"
-                + create_log[-2400:]
+                f"CM did not register Seaman's Arsenal offer; got {sorted(offered)}"
             )
-        original = owner_state(before_dir, "pre-reload")
-        contract_before = contract_data(before_dir, "pre-reload")
-        print(f"PASS native offer events for {len(observed)} staff/club pairs: "
-              f"{sorted(observed)[:6]}", flush=True)
-        print(f"PASS native save with contract.dat "
-              f"{len(contract_before)} decoded bytes", flush=True)
+        print("PASS CM native ContractManager offer: David Seaman "
+              "(staff 6528) to Arsenal (club 362)", flush=True)
+        original = owner_state(first, "new career")
+        contract_before = native_contracts(first, "after submitting offer")
+        print(f"PASS saved contract.dat: {len(contract_before)} decoded bytes, "
+              f"SHA256 {hashlib.sha256(contract_before).hexdigest()}", flush=True)
 
-        # A fresh process and user directory. The source save was made while
-        # the manager was on holiday, so DO NOT wait for a first-news screen:
-        # the holiday can legitimately continue without an interactive turn.
-        after_dir.mkdir(parents=True)
-        shutil.copy2(before_dir / smoke_run.SAVE_NAME,
-                     after_dir / smoke_run.SAVE_NAME)
-        reload_steps = fixtures.LOAD_STEPS[:-1] + ["180000 quit"]
-        run_native(
-            program, game, after_dir, reload_steps,
+        # Reload in a separate process, isolated HOME/RECOMP_USER_DIR, no owner
+        # sidecars or commands; save immediately at its first native human turn.
+        second.mkdir(parents=True)
+        shutil.copy2(first / smoke_run.SAVE_NAME,
+                     second / smoke_run.SAVE_NAME)
+        # Unlike the abandoned holiday fixture, the manager is NOT on holiday;
+        # a valid reload can reach the native first-news screen.
+        load_steps = fixtures.LOAD_STEPS + ["180000 quit"]
+        second_log = run_native(
+            program, game, second, load_steps,
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
              "RECOMP_SAVE_AFTER_DAYS": "0"},
-            "reload and re-save native contract state"
+            "reload native career and re-save without a transaction",
         )
-        restored = owner_state(after_dir, "post-reload")
-        contract_after = contract_data(after_dir, "post-reload")
+        restored = owner_state(second, "reloaded career")
+        contract_after = native_contracts(second, "reloaded career")
         if restored["club_id"] != original["club_id"]:
-            raise AssertionError("Arsenal identity changed over save/reload")
+            raise AssertionError("Native Arsenal club ID changed on reload")
         if restored["date"] != original["date"]:
             raise AssertionError(
-                f"Game date changed during roundtrip: "
-                f"{original['date']} -> {restored['date']}; "
-                "the test must capture the same native game turn"
+                f"Native CM date changed on reload: {original['date']} -> "
+                f"{restored['date']}; cannot compare a different game turn"
             )
         if contract_before != contract_after:
             raise AssertionError(
-                "native contract.dat changed after loading and saving "
-                "the same game turn: before sha256="
-                f"{hashlib.sha256(contract_before).hexdigest()}, after="
-                f"{hashlib.sha256(contract_after).hexdigest()}"
+                "Native contract.dat changed across immediate load/save: "
+                f"before {hashlib.sha256(contract_before).hexdigest()}, "
+                f"after {hashlib.sha256(contract_after).hexdigest()}"
             )
-        print(f"PASS native contract save/reload: exact "
-              f"{len(contract_before)}-byte contract.dat roundtrip, "
-              "same Arsenal and same game date", flush=True)
+        if (second / "owner-game-command.txt").exists():
+            raise AssertionError("Stale owner command appeared in fresh process")
+        print("PASS REAL CM contract save/reload: submitted Seaman offer, "
+              f"same Arsenal, same game date, identical {len(contract_after)}-byte "
+              "decoded contract.dat", flush=True)
+        # An accepted/rejected decision must be validated with the native
+        # resolver in a later test. Do not infer it from lack of a reply.
+        if "cm_accepted_human_club_offer" in second_log:
+            print("NOTICE: native decision event observed during reload", flush=True)
     return 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv))
-    except (AssertionError, OSError, ValueError, TimeoutError, KeyError) as exc:
-        print(f"FAIL native offer save/reload: {exc}", file=sys.stderr)
+    except (AssertionError, OSError, ValueError, TimeoutError, KeyError) as error:
+        print(f"FAIL real native offer save/reload: {error}", file=sys.stderr)
         sys.exit(1)
