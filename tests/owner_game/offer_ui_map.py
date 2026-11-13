@@ -46,12 +46,14 @@ def main(argv):
             "1200 dump {d}/03-player-action-menu.bmp",
             "1800 click 690 80",            # Native Offer New Contract action
             "3000 dump {d}/04-role-at-club.bmp",
-            "2000 click 705 573",           # Set existing role (important first-team player)
+            "4800 click 272 216",           # Explicitly choose important first-team player
+            "6000 dump {d}/05-role-selected.bmp",
+            "7500 click 705 573",           # Set role
             "wait screen:0x4deac0",         # Native Offer Contract screen
-            "1500 dump {d}/05-contract-terms.bmp",
-            "1800 click 705 573",           # Native Offer button, not a fabricated offer
-            "2400 dump {d}/06-offer-confirmation.bmp",
-            "5000 quit",
+            "1500 dump {d}/06-contract-terms.bmp",
+            "3500 click 705 573",           # Offer via CM, not a fabricated contract
+            "4500 dump {d}/07-offer-confirmation.bmp",
+            "7000 quit",
         ]
         result, duration = fixtures.run(
             program, game, "classic", str(user),
@@ -66,16 +68,16 @@ def main(argv):
             raise AssertionError(f"UI mapping failed (exit {result.returncode}); "
                                  f"{result.stderr[-1500:]}")
         shots = sorted(Path(out).glob("*.bmp"))
-        if len(shots) != 6:
+        if len(shots) != 7:
             raise AssertionError(
-                f"Expected squad, profile, action, role, terms and offer-confirmation dumps; "
+                f"Expected squad, profile, action, role, selected role, terms and offer-confirmation dumps; "
                 f"got {[p.name for p in shots]}. See native screen log."
             )
         screen_log = [
             line for line in result.stderr.splitlines()
             if "recomp: screen " in line or "recomp: script " in line
         ]
-        print(f"PASS mapped 6 native player UI screens after {duration:.1f}s",
+        print(f"PASS mapped 7 native player UI screens after {duration:.1f}s",
               flush=True)
         print("\n".join(screen_log[-25:]), flush=True)
     return 0
