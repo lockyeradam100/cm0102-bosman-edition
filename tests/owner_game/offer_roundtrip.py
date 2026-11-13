@@ -152,13 +152,14 @@ def main(argv: list[str]) -> int:
         base_steps = [x for x in smoke_run.STEPS if " dump " not in x]
         base_steps = base_steps[:base_steps.index("wait first-news") + 1]
         base_steps += [
-            "1200 click 45 115",            # Same Arsenal, advance one day
+            "1200 space",                   # Real Continue Game shortcut (default on)
             "180000 quit",
         ]
         run_native(
             program, game, control, base_steps,
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
-             "RECOMP_SAVE_AFTER_DAYS": "1"},
+             "RECOMP_SAVE_AFTER_DAYS": "1",
+             "RECOMP_SCREEN_LOG": "1"},
             "control Arsenal career with no contract submission",
         )
         control_state = owner_state(control, "no-offer control")
