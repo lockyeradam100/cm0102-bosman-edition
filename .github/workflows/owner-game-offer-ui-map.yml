@@ -1,0 +1,54 @@
+name: Owner Game Contract UI Mapping
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - owner-game-offer-roundtrip
+    paths:
+      - tests/owner_game/offer_ui_map.py
+      - .github/workflows/owner-game-offer-ui-map.yml
+
+concurrency:
+  group: owner-game-offer-ui-map-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  map-ui:
+    runs-on: macos-15-intel
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout test fixture
+        uses: actions/checkout@v4
+
+      - name: Download verified Mac game
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/og-artifact" "$RUNNER_TEMP/og-app"
+          gh run download 43223893165 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name Owner-Game-Bosman-Mac \
+            --dir "$RUNNER_TEMP/og-artifact"
+          test -s "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip"
+          ditto -x -k "$RUNNER_TEMP/og-artifact/Owner-Game-Mac-Complete.zip" "$RUNNER_TEMP/og-app"
+
+      - name: Map native Arsenal player-contract UI
+        run: |
+          APP="$RUNNER_TEMP/og-app/CM 01-02 Bosman Edition.app"
+          mkdir -p "$RUNNER_TEMP/offer-ui"
+          python3 tests/owner_game/offer_ui_map.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game" \
+            "$RUNNER_TEMP/offer-ui"
+
+      - name: Save UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Contract-UI-Map
+          path: ${{ runner.temp }}/offer-ui/
+          if-no-files-found: warn
+          retention-days: 10
