@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - owner-game-offer-roundtrip
+    paths:
+      - tests/owner_game/offer_roundtrip.py
+      - .github/workflows/owner-game-offer-roundtrip.yml
 
 concurrency:
   group: owner-game-offer-roundtrip-${{ github.ref }}
