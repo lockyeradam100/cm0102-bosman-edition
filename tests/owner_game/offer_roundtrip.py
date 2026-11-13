@@ -7,9 +7,13 @@ The scripted clicks select his role, click Offer, then confirm YES. The game
 must call ContractManager::add_contract_offer(staff 6528, Arsenal club 362),
 advance one actual game day, and save its real contract.dat.
 
-Then a distinct native process reloads exactly that .sav and re-saves at its
-first human turn with no football action or owner command. The game date,
-club ID, and decoded contract.dat MUST be identical.
+A separate same-date Arsenal control career makes NO offer: its native
+contract.dat must differ from the offered career, proving that a real contract
+state difference was saved rather than only logged in the UI.
+
+Then a distinct native process reloads exactly the offered .sav and re-saves
+at its first human turn with no new action or owner command. The date, club,
+and decoded contract.dat MUST match the offered save exactly.
 
 This does not claim that a reply was received or that the offer was accepted:
 those are subsequent native resolver / response tests. The test never
@@ -121,6 +125,7 @@ def main(argv: list[str]) -> int:
         root = Path(tmp)
         first = root / "new" / "user"
         second = root / "reloaded" / "user"
+        control = root / "control-no-offer" / "user"
 
         # One-day delayed native autosave, after the real offer was submitted.
         first_log = run_native(
@@ -140,6 +145,42 @@ def main(argv: list[str]) -> int:
         contract_before = native_contracts(first, "after submitting offer")
         print(f"PASS saved contract.dat: {len(contract_before)} decoded bytes, "
               f"SHA256 {hashlib.sha256(contract_before).hexdigest()}", flush=True)
+
+        # Crucial independent proof that the *offer itself* changed the
+        # native saved contract state. Identical save/reload hashes alone
+        # could otherwise mask an offer that was never persisted.
+        base_steps = [x for x in smoke_run.STEPS if " dump " not in x]
+        base_steps = base_steps[:base_steps.index("wait first-news") + 1]
+        base_steps += [
+            "1200 click 45 115",            # Same Arsenal, advance one day
+            "180000 quit",
+        ]
+        run_native(
+            program, game, control, base_steps,
+            {"RECOMP_OWNER_CONTRACT_TRACE": "1",
+             "RECOMP_SAVE_AFTER_DAYS": "1"},
+            "control Arsenal career with no contract submission",
+        )
+        control_state = owner_state(control, "no-offer control")
+        if control_state["date"] != original["date"]:
+            raise AssertionError(
+                "Control and offered careers do not share the same game date: "
+                f"{control_state['date']} vs {original['date']}"
+            )
+        baseline = native_contracts(control, "no-offer control")
+        if baseline == contract_before:
+            raise AssertionError(
+                "Real Seaman submit event was observed, but offered career's "
+                "contract.dat exactly matches no-offer control. Pending offer "
+                "was not demonstrably saved; do not claim persistence."
+            )
+        changes = sum(a != b for a, b in zip(baseline, contract_before))
+        changes += abs(len(baseline) - len(contract_before))
+        print("PASS offer changed NATIVE SAVED CONTRACT STATE relative "
+              f"to a same-date no-offer control: {changes} decoded bytes differ, "
+              f"control len={len(baseline)}, offered len={len(contract_before)}",
+              flush=True)
+
 
         # Reload in a separate process, isolated HOME/RECOMP_USER_DIR, no owner
         # sidecars or commands; save immediately at its first native human turn.
