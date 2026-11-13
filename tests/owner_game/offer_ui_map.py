@@ -45,7 +45,12 @@ def main(argv):
             "wait popup",
             "1200 dump {d}/03-player-action-menu.bmp",
             "1800 click 690 80",            # Native Offer New Contract action
-            "3000 dump {d}/04-offer-contract-screen.bmp",
+            "3000 dump {d}/04-role-at-club.bmp",
+            "2000 click 705 573",           # Set existing role (important first-team player)
+            "wait screen:0x4deac0",         # Native Offer Contract screen
+            "1500 dump {d}/05-contract-terms.bmp",
+            "1800 click 705 573",           # Native Offer button, not a fabricated offer
+            "2400 dump {d}/06-offer-confirmation.bmp",
             "5000 quit",
         ]
         result, duration = fixtures.run(
@@ -61,16 +66,16 @@ def main(argv):
             raise AssertionError(f"UI mapping failed (exit {result.returncode}); "
                                  f"{result.stderr[-1500:]}")
         shots = sorted(Path(out).glob("*.bmp"))
-        if len(shots) != 4:
+        if len(shots) != 6:
             raise AssertionError(
-                f"Expected squad, profile, Action-menu and contract-screen dumps; "
+                f"Expected squad, profile, action, role, terms and offer-confirmation dumps; "
                 f"got {[p.name for p in shots]}. See native screen log."
             )
         screen_log = [
             line for line in result.stderr.splitlines()
             if "recomp: screen " in line or "recomp: script " in line
         ]
-        print(f"PASS mapped 4 native player UI screens after {duration:.1f}s",
+        print(f"PASS mapped 6 native player UI screens after {duration:.1f}s",
               flush=True)
         print("\n".join(screen_log[-25:]), flush=True)
     return 0
