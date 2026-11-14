@@ -223,7 +223,13 @@ static void write_contract_event(const OgState *s, uint32_t staff, uint32_t huma
     char name[80], text[1400];
     copy_staff_name(name, sizeof name, staff);
     int32_t staff_id = memory_ok(staff, 4) ? (int32_t)rd32(g_mem, staff) : -1;
-    int accepted = agreed_offer && (agreed_offer == human_offer || agreed_offer == human_offer_after);
+    int accepted = agreed_offer &&
+                   (agreed_offer == human_offer || agreed_offer == human_offer_after);
+    /* No response does not mean rejection. Absence of a native offer could
+     * also mean replacement, withdrawal, expiry or other resolution. */
+    const char *result = accepted ? "cm_accepted_human_club_offer"
+                         : human_offer_after ? "cm_offer_still_pending"
+                         : "cm_offer_absent_after_resolution_unclassified";
     snprintf(text, sizeof text,
              "{\n"
              "  \"bridge_version\": \"0.4-poc\",\n"
@@ -243,11 +249,11 @@ static void write_contract_event(const OgState *s, uint32_t staff, uint32_t huma
              s->year, s->month, s->day, staff_id, name,
              s->club_id, s->club_name,
              human_offer, human_offer_after, agreed_offer,
-             accepted ? "true" : "false",
-             accepted ? "cm_accepted_human_club_offer" : "cm_did_not_accept_human_club_offer");
+             accepted ? "true" : "false", result);
     replace_text_file("owner-game-contract-event.json", text);
-    fprintf(stderr, "owner-game: CM contract decision: staff %d (%s), club %d (%s), accepted=%d\n",
-            staff_id, name, s->club_id, s->club_name, accepted);
+    fprintf(stderr,
+            "owner-game: CM contract decision: staff %d (%s), club %d (%s), result=%s\n",
+            staff_id, name, s->club_id, s->club_name, result);
 }
 
 static void process_command(void)
@@ -324,6 +330,17 @@ void owner_game_after_human_turn(void)
     write_state();
 }
 
+/*
+ * Keep resolver diagnostics opt-in. Nested rt_callback calls from inside
+ * offer mutation hooks altered native save parity in earlier experiments.
+ * Normal careers must leave CM's resolver unmodified and unobserved here.
+ */
+static int owner_contract_decision_trace_enabled(void)
+{
+    const char *v = getenv("RECOMP_OWNER_CONTRACT_DECISION_TRACE");
+    return v && strcmp(v, "1") == 0;
+}
+
 /* CM's own contract resolver: thiscall(CONTRACT_MANAGER *this, Staff *staff). For the observational A-side,
  * do not alter any state before CM runs. If the human club has a pending contract offer for this staff member,
  * remember its pointer, let CM make the decision, then ask CM which offer (if any) is agreed and record whether
@@ -331,6 +348,10 @@ void owner_game_after_human_turn(void)
 void o_004ce4e0(void);
 RT_WRAP(004ce4e0, owner_game_contract_decision)
 {
+    if (!owner_contract_decision_trace_enabled()) {
+        o_004ce4e0();
+        return;
+    }
     uint32_t contract_manager = cpu.ecx;
     uint32_t staff = rt_arg(0);
     OgState s;
