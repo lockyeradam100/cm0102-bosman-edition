@@ -152,7 +152,7 @@ def main(argv: list[str]) -> int:
         base_steps = [x for x in smoke_run.STEPS if " dump " not in x]
         base_steps = base_steps[:base_steps.index("wait first-news") + 1]
         base_steps += [
-            "1200 space",                   # Real Continue Game shortcut (default on)
+            "1200 press space",             # The native script runner uses "press", not "space"
             "180000 quit",
         ]
         run_native(
