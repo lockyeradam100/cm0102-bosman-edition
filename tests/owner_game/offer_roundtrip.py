@@ -149,19 +149,25 @@ def main(argv: list[str]) -> int:
         # Crucial independent proof that the *offer itself* changed the
         # native saved contract state. Identical save/reload hashes alone
         # could otherwise mask an offer that was never persisted.
-        base_steps = [x for x in smoke_run.STEPS if " dump " not in x]
-        base_steps = base_steps[:base_steps.index("wait first-news") + 1]
-        base_steps += [
-            "1200 press space",             # The native script runner uses "press", not "space"
-            "180000 quit",
-        ]
-        run_native(
+        # Do EXACTLY the same player-profile and contract-screen actions,
+        # but say No to the final confirmation. This avoids a confounded
+        # control that gets stuck at first-news without visiting Arsenal.
+        # The additional Cancel/Back clicks close the contract forms.
+        base_steps = offer_steps()
+        yes = base_steps.index("6500 click 705 573")
+        base_steps[yes] = "6500 click 350 573"   # No, do not submit
+        base_steps.insert(yes + 1, "7300 click 350 573")  # Cancel the terms form
+        base_steps.insert(yes + 2, "7900 click 350 573")  # Back if role screen remains
+        control_log = run_native(
             program, game, control, base_steps,
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
              "RECOMP_SAVE_AFTER_DAYS": "1",
              "RECOMP_SCREEN_LOG": "1"},
-            "control Arsenal career with no contract submission",
+            "control Arsenal career choosing No to Seaman offer",
         )
+        control_offers = set(NATIVE_ADD.findall(control_log))
+        if (SEAMAN_STAFF_ID, ARSENAL_CLUB_ID) in control_offers:
+            raise AssertionError("No-offer control unexpectedly submitted Seaman's offer")
         control_state = owner_state(control, "no-offer control")
         if control_state["date"] != original["date"]:
             raise AssertionError(
