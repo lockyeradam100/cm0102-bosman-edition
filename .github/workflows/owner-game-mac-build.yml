@@ -7,6 +7,7 @@ on:
       - owner-game-live-bridge
       - owner-game-p0-integration-tests
       - owner-game-contract-lifecycle
+      - owner-game-offer-roundtrip
 
 # Later commits supersede earlier experiments on the same branch.
 # Keep the known-good live and test branches independent.
