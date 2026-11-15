@@ -155,6 +155,7 @@ def main(argv: list[str]) -> int:
         first = root / "new" / "user"
         second = root / "reloaded" / "user"
         control = root / "control-no-offer" / "user"
+        no_watch = root / "same-offer-no-readback" / "user"
 
         # One-day delayed native autosave, after the real offer was submitted.
         first_log = run_native(
@@ -230,6 +231,31 @@ def main(argv: list[str]) -> int:
               f"to a same-date no-offer control: {changes} decoded bytes differ, "
               f"control len={len(baseline)}, offered len={len(contract_before)}",
               flush=True)
+
+        # The optional readback must not affect gameplay or saved contract
+        # state. Submit the IDENTICAL native Seaman offer again, but leave
+        # RECOMP_OWNER_CONTRACT_WATCH_STAFF completely unset.
+        other_log = run_native(
+            program, game, no_watch, offer_steps(),
+            {"RECOMP_OWNER_CONTRACT_TRACE": "1",
+             "RECOMP_SAVE_AFTER_DAYS": "1"},
+            "same Seaman offer with safe-point readback disabled",
+        )
+        if (SEAMAN_STAFF_ID, ARSENAL_CLUB_ID) not in set(NATIVE_ADD.findall(other_log)):
+            raise AssertionError("Unwatched control did not submit native offer")
+        if owner_state(no_watch, "readback-off")["date"] != original["date"]:
+            raise AssertionError("Readback-off control game date changed")
+        other_contract = native_contracts(no_watch, "readback-off")
+        if other_contract != contract_before:
+            raise AssertionError(
+                "Opt-in native safe-point readback CHANGED the saved contract "
+                "state; do not ship diagnostics. watched_sha256="
+                f"{hashlib.sha256(contract_before).hexdigest()} "
+                f"unwatched_sha256={hashlib.sha256(other_contract).hexdigest()}"
+            )
+        print("PASS observer parity: identical native offer saved exactly the "
+              "same contract.dat with safe-point readback ON and OFF", flush=True)
+
 
 
         # Reload in a separate process, isolated HOME/RECOMP_USER_DIR, no owner
