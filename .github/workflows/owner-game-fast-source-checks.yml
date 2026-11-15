@@ -23,16 +23,22 @@ jobs:
           set -eu
           cc -std=c11 -fsyntax-only -Isrc/recomp_rt -Isrc/recomp_rt/win \
             src/recomp_rt/win/owner_game_manager_trace.c \
-            src/recomp_rt/win/owner_game_contract_submit_trace.c
+            src/recomp_rt/win/owner_game_contract_submit_trace.c \
+            src/recomp_rt/win/owner_game.c \
+            src/recomp_rt/win/holiday_next.c
       - name: Validate native lifecycle and Manager Desk Python tests
         run: |
           set -eu
           python3 -m py_compile \
             tests/owner_game/manager_trace_parity.py \
             tests/owner_game/offer_delayed_lifecycle.py \
-            tests/owner_game/offer_roundtrip.py
+            tests/owner_game/offer_roundtrip.py \
+            tests/owner_game/bridge_smoke.py \
+            tests/owner_game/test_manager_desk_wiring.py
       - name: Validate fast development and cached integration workflow
         run: python3 tests/owner_game/test_ci_workflows.py
+      - name: Check Manager Desk action is authenticated and enters the native game only at a safe point
+        run: python3 tests/owner_game/test_manager_desk_wiring.py
       - name: Ensure Manager Desk wraps verified native methods and never substitutes football outcomes
         run: |
           python3 - <<'PY'

@@ -235,6 +235,17 @@ static int delegate_arm(uint32_t manager)
     return 1;
 }
 
+/* Owner Game UI commands are processed only at the native human-turn safe point.
+ * Reuse the exact in-game side-bar delegation path rather than setting holiday
+ * flags or match results from an SDL keyboard callback. See owner_game.c.
+ *  1 = armed, 0 = no match, -1 = invalid manager, -2 = already on holiday.
+ */
+int owner_game_delegate_next_from_safe_point(void)
+{
+    uint32_t manager = current_manager();
+    return manager ? delegate_arm(manager) : -1;
+}
+
 /* The Go on Holiday item: keep its arguments, before the wrap scales them. */
 int holiday_widget_before(void)
 {

@@ -11,6 +11,10 @@
  *
  * POC command file (owner-game-command.txt):
  *   inject_cash <session_hex> <club_id> <amount>
+ *   delegate_match <session_hex> <club_id>
+ *
+ * Native match delegation uses the same holiday/fixture path as the game's
+ * left-bar action. It never simulates a result or modifies the game from SDL.
  *
  * Commands are tied to this process session and the exact current club, then deleted after one read. This
  * prevents a stale command from being replayed after a restart or against a different club/save.
@@ -177,6 +181,18 @@ static void write_state(void)
         return;
     }
 
+    char native_manager_name[80] = "";
+    char controller_name[80] = "";
+    copy_staff_name(controller_name, sizeof controller_name, s.manager);
+    /* The actual club manager is a staff pointer in the native Club row.
+     * The controlled (human) manager and the club incumbent may be distinct. */
+    uint32_t native_manager = rd32(g_mem, s.club + 0xcfu);
+    int32_t native_manager_id = -1;
+    if (memory_ok(native_manager, 4)) {
+        native_manager_id = (int32_t)rd32(g_mem, native_manager);
+        copy_staff_name(native_manager_name, sizeof native_manager_name,
+                        native_manager);
+    }
     snprintf(text, sizeof text,
              "{\n"
              "  \"bridge_version\": \"0.4-poc\",\n"
@@ -187,11 +203,15 @@ static void write_state(void)
              "  \"club_id\": %d,\n"
              "  \"club_name\": \"%s\",\n"
              "  \"balance\": %lld,\n"
+             "  \"native_manager_id\": %d,\n"
+             "  \"native_manager_name\": \"%s\",\n"
+             "  \"controller_name\": \"%s\",\n"
              "  \"command\": \"inject_cash %016llx %d 5000000\"\n"
              "}\n",
              (unsigned long long)og_session,
              s.year, s.month, s.day, s.slot, s.club_id, s.club_name,
-             (long long)s.balance, (unsigned long long)og_session, s.club_id);
+             (long long)s.balance, native_manager_id, native_manager_name,
+             controller_name, (unsigned long long)og_session, s.club_id);
     replace_text_file("owner-game-state.json", text);
 }
 
@@ -273,8 +293,14 @@ static void process_command(void)
     unsigned long long session = 0;
     int club_id = -1;
     long long amount_ll = 0;
-    if (sscanf(line, "%31s %llx %d %lld", action, &session, &club_id, &amount_ll) != 4 ||
-        strcmp(action, "inject_cash")) {
+    char extra[2] = "";
+    int fields = sscanf(line, "%31s %llx %d %lld %1s",
+                        action, &session, &club_id, &amount_ll, extra);
+    int is_investment = strcmp(action, "inject_cash") == 0;
+    int is_delegation = strcmp(action, "delegate_match") == 0;
+    if ((!is_investment && !is_delegation) ||
+        (is_investment && fields != 4) ||
+        (is_delegation && fields != 3)) {
         write_result("rejected", "invalid command", NULL, 0, 0, 0);
         return;
     }
@@ -292,6 +318,24 @@ static void process_command(void)
         write_result("rejected", "wrong club", &s, (int64_t)amount_ll, s.balance, s.balance);
         return;
     }
+    if (is_delegation) {
+        /* A safe-point operation: calls the exact native path also used by
+         * "Let Manager Handle Next Match" on CM's left-side menu. The request
+         * is not a separate simulation and never changes a match score. */
+        extern int owner_game_delegate_next_from_safe_point(void);
+        int result = owner_game_delegate_next_from_safe_point();
+        const char *message =
+            result == 1 ? "native next-match delegation armed" :
+            result == 0 ? "no match in next 60 days" :
+            result == -2 ? "already on holiday" :
+            "no valid human manager";
+        write_result(result == 1 ? "applied" : "rejected",
+                     message, &s, 0, s.balance, s.balance);
+        fprintf(stderr, "owner-game: delegate_match club=%d result=%d (%s)\n",
+                s.club_id, result, message);
+        return;
+    }
+
     if (amount_ll <= 0 || amount_ll > OG_MAX_INJECTION) {
         write_result("rejected", "amount outside POC guardrail", &s, (int64_t)amount_ll, s.balance, s.balance);
         return;

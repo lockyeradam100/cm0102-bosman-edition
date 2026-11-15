@@ -46,6 +46,12 @@ def snapshot(user: Path, label: str) -> dict:
         raise AssertionError(f"{label}: missing game date: {state}")
     if not isinstance(state.get("session"), str) or len(state["session"]) != 16:
         raise AssertionError(f"{label}: invalid process session token: {state}")
+    if not isinstance(state.get("controller_name"), str) or not state["controller_name"]:
+        raise AssertionError(f"{label}: no real CM controller identity: {state}")
+    if not isinstance(state.get("native_manager_id"), int):
+        raise AssertionError(f"{label}: no native manager identity field: {state}")
+    if not isinstance(state.get("native_manager_name"), str):
+        raise AssertionError(f"{label}: malformed native manager name: {state}")
     print(f"PASS {label}: Arsenal, club ID {state['club_id']}, "
           f"date {state['date']}, native cash {state['balance']}")
     return state
@@ -110,6 +116,12 @@ def main(argv: list[str]) -> int:
             raise AssertionError("Native date changed across save/reload without advancing")
         if restored["balance"] != original["balance"]:
             raise AssertionError("Native club cash changed across save/reload with no transaction")
+        if restored["controller_name"] != original["controller_name"]:
+            raise AssertionError("CM controller identity changed across save/reload")
+        if restored["native_manager_id"] != original["native_manager_id"]:
+            raise AssertionError("Native club-manager ID changed across save/reload")
+        if restored["native_manager_name"] != original["native_manager_name"]:
+            raise AssertionError("Native club-manager identity changed across save/reload")
         if restored["session"] == original["session"]:
             raise AssertionError("Process session token unexpectedly survived restart")
         if (second / "owner-game-command.txt").exists():

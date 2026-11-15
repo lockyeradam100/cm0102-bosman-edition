@@ -501,6 +501,77 @@ static void end_click_for_key(void)
     post_mouse(WM_MOUSEMOVE, key_click.real_x, key_click.real_y);
 }
 
+/* A real manager-delegation choice from the existing Owner Game UI.
+ * This is a host UI, not a second game engine: write one command for the
+ * verified native human-turn boundary. Never call CM methods from SDL input. */
+static void owner_game_manager_desk(const char *state, const char *club,
+                                    const char *date, const char *session,
+                                    int club_id)
+{
+    char manager[96] = "", controller[96] = "", message[1000];
+    char command_path[1200];
+    const char *at = strstr(state, "\"native_manager_name\": \"");
+    if (at) sscanf(at, "\"native_manager_name\": \"%95[^\"]", manager);
+    at = strstr(state, "\"controller_name\": \"");
+    if (at) sscanf(at, "\"controller_name\": \"%95[^\"]", controller);
+    snprintf(message, sizeof message,
+        "CLUB: %s\nDATE: %s\nNATIVE CLUB MANAGER: %s\nCM CONTROLLER: %s\n\n"
+        "MATCHDAY CONTROL\n"
+        "Delegate the next first-team fixture using CM's existing holiday "
+        "and assistant-manager engine. CM calculates the actual result; "
+        "your game returns to normal control afterwards.\n\n"
+        "Manager hiring, poaching, contract compensation and dismissal "
+        "are not yet enabled.",
+        club, date, manager[0] ? manager : "Not recorded",
+        controller[0] ? controller : "Not recorded");
+    const SDL_MessageBoxButtonData buttons[] = {
+        {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Delegate Next Match"},
+        {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Close"}
+    };
+    SDL_MessageBoxData box = {
+        SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Manager Desk",
+        message, 2, buttons, NULL
+    };
+    int chosen = 0;
+    if (SDL_ShowMessageBox(&box, &chosen) != 0 || chosen != 1) return;
+    if (!win_user_dir[0] || strlen(session) != 16 || club_id < 0) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Manager Desk",
+            "No valid active club session. Continue the game and reopen the desk.",
+            window);
+        return;
+    }
+    snprintf(command_path, sizeof command_path,
+             "%s/owner-game-command.txt", win_user_dir);
+    FILE *fp = fopen(command_path, "rb");
+    if (fp) {
+        fclose(fp);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Manager Desk",
+            "Another owner decision is pending. Continue the game first.",
+            window);
+        return;
+    }
+    /* One-shot command tied to the active club and running process. */
+    fp = fopen(command_path, "wb");
+    if (!fp) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Manager Desk",
+            "Could not queue the delegation request.", window);
+        return;
+    }
+    int wrote = fprintf(fp, "delegate_match %s %d\n", session, club_id);
+    int closed = fclose(fp);
+    if (wrote <= 0 || closed != 0) {
+        remove(command_path);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Manager Desk",
+            "Could not save the delegation request.", window);
+        return;
+    }
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Manager Desk",
+        "Delegation requested. Click Continue Game to arm it in CM. "
+        "The game will simulate your next match and return control. "
+        "You may cancel before kick-off from the native left-side menu.",
+        window);
+}
+
 /* The first interactive owner decision: invest GBP 5m in the human club.
  * A command is queued for the bridge to validate and apply on the next
  * human turn. Do not write game memory from the SDL keyboard event loop. */
@@ -546,15 +617,21 @@ static void owner_game_overview(void)
         "This is a sandbox test. It does not deduct from a personal owner wallet yet.",
         club, date, balance);
     const SDL_MessageBoxButtonData buttons[] = {
-        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Invest GBP 5m" },
+        { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 2, "Manager Desk" },
+        { 0, 1, "Invest GBP 5m" },
         { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Close" }
     };
     SDL_MessageBoxData box = {
-        SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Club Finance",
-        message, 2, buttons, NULL
+        SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Club Overview",
+        message, 3, buttons, NULL
     };
     int chosen = 0;
-    if (SDL_ShowMessageBox(&box, &chosen) != 0 || chosen != 1) return;
+    if (SDL_ShowMessageBox(&box, &chosen) != 0) return;
+    if (chosen == 2) {
+        owner_game_manager_desk(state, club, date, session, club_id);
+        return;
+    }
+    if (chosen != 1) return;
 
     /* Protect against an unintended duplicate command and require confirmation. */
     snprintf(command_path, sizeof command_path, "%s/owner-game-command.txt", win_user_dir);
@@ -619,6 +696,14 @@ static int shortcut_key(SDL_Keycode k, Uint16 mod)
     int plain = !(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI | KMOD_SHIFT));
     /* Available even when standard game shortcuts are disabled. */
     if (k == SDLK_F12 && plain) { owner_game_overview(); return 1; }
+    /* Mac laptop F12 normally controls volume. Cmd-Shift-O (or Ctrl-Shift-O
+     * on Windows) opens Owner Game without requiring the Fn key. */
+    if (k == SDLK_o && (mod & KMOD_SHIFT) &&
+        (mod & (windows ? KMOD_CTRL : KMOD_GUI)) &&
+        !(mod & KMOD_ALT)) {
+        owner_game_overview();
+        return 1;
+    }
     /* The display report key works with the option shortcuts off too: a player with a broken picture needs it. */
     if (k == SDLK_d && (mod & KMOD_SHIFT) && (mod & (windows ? KMOD_CTRL : KMOD_GUI)) && !(mod & KMOD_ALT)) {
         fprintf(stderr, "recomp: key display report\n");
