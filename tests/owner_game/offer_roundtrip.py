@@ -15,6 +15,11 @@ Then a distinct native process reloads exactly the offered .sav and re-saves
 at its first human turn with no new action or owner command. The date, club,
 and decoded contract.dat MUST match the offered save exactly.
 
+The native readback additionally confirms an open offer for Seaman at the
+same save turn, absent in the cancelled control, and still open after
+reloading into a distinct process. This is an explicit opt-in diagnostic
+from the native ContractManager at the normal human-turn safe point.
+
 This does not claim that a reply was received or that the offer was accepted:
 those are subsequent native resolver / response tests. The test never
 touches an existing player career and does not create fictitious offers.
@@ -44,6 +49,30 @@ NATIVE_ADD = re.compile(
 )
 SEAMAN_STAFF_ID = "6528"
 ARSENAL_CLUB_ID = "362"
+SAFE_POINT = re.compile(
+    r"owner-game: contract safe_point staff=(\d+) club=(\d+) "
+    r"status=(open_offer_present|open_offer_absent|unavailable)"
+)
+
+
+def safe_point_status(log: str, label: str) -> str:
+    observed = [
+        status for staff, club, status in SAFE_POINT.findall(log)
+        if staff == SEAMAN_STAFF_ID and club == ARSENAL_CLUB_ID
+    ]
+    if not observed:
+        raise AssertionError(
+            f"{label}: missing independent native open-offer readback "
+            "at a human turn"
+        )
+    if observed[-1] == "unavailable":
+        raise AssertionError(
+            f"{label}: ContractManager not available for safe-point readback"
+        )
+    print(f"CHECK {label}: native Seaman offer {observed[-1]} "
+          f"({len(observed)} observed human turns)", flush=True)
+    return observed[-1]
+
 
 
 def run_native(program: str, game: str, user: Path,
@@ -131,7 +160,8 @@ def main(argv: list[str]) -> int:
         first_log = run_native(
             program, game, first, offer_steps(),
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
-             "RECOMP_SAVE_AFTER_DAYS": "1"},
+             "RECOMP_SAVE_AFTER_DAYS": "1",
+             "RECOMP_OWNER_CONTRACT_WATCH_STAFF": SEAMAN_STAFF_ID},
             "submit Seaman offer, advance one game day and save",
         )
         offered = set(NATIVE_ADD.findall(first_log))
@@ -141,6 +171,13 @@ def main(argv: list[str]) -> int:
             )
         print("PASS CM native ContractManager offer: David Seaman "
               "(staff 6528) to Arsenal (club 362)", flush=True)
+        first_pending = safe_point_status(first_log, "after offer day")
+        if first_pending != "open_offer_present":
+            raise AssertionError(
+                "The native offer submit event happened, but the offer "
+                "is not in the native open-offer list on the saved turn. "
+                "This does NOT establish player rejection."
+            )
         original = owner_state(first, "new career")
         contract_before = native_contracts(first, "after submitting offer")
         print(f"PASS saved contract.dat: {len(contract_before)} decoded bytes, "
@@ -162,9 +199,15 @@ def main(argv: list[str]) -> int:
             program, game, control, base_steps,
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
              "RECOMP_SAVE_AFTER_DAYS": "1",
-             "RECOMP_SCREEN_LOG": "1"},
+             "RECOMP_SCREEN_LOG": "1",
+             "RECOMP_OWNER_CONTRACT_WATCH_STAFF": SEAMAN_STAFF_ID},
             "control Arsenal career choosing No to Seaman offer",
         )
+        control_status = safe_point_status(control_log, "cancel control")
+        if control_status != "open_offer_absent":
+            raise AssertionError(
+                "Cancelled-offer control still shows a live Seaman offer"
+            )
         control_offers = set(NATIVE_ADD.findall(control_log))
         if (SEAMAN_STAFF_ID, ARSENAL_CLUB_ID) in control_offers:
             raise AssertionError("No-offer control unexpectedly submitted Seaman's offer")
@@ -200,9 +243,16 @@ def main(argv: list[str]) -> int:
         second_log = run_native(
             program, game, second, load_steps,
             {"RECOMP_OWNER_CONTRACT_TRACE": "1",
-             "RECOMP_SAVE_AFTER_DAYS": "0"},
+             "RECOMP_SAVE_AFTER_DAYS": "0",
+             "RECOMP_OWNER_CONTRACT_WATCH_STAFF": SEAMAN_STAFF_ID},
             "reload native career and re-save without a transaction",
         )
+        reloaded_status = safe_point_status(second_log, "after reload")
+        if reloaded_status != first_pending:
+            raise AssertionError(
+                f"Native offer status changed during save/reload: "
+                f"{first_pending} -> {reloaded_status}"
+            )
         restored = owner_state(second, "reloaded career")
         contract_after = native_contracts(second, "reloaded career")
         if restored["club_id"] != original["club_id"]:
