@@ -54,7 +54,32 @@ jobs:
 
           hdiutil detach "$(dirname "$APP")"
 
+      # SDL2 is pinned; reuse both architecture builds between commits.
+      # GitHub Actions cache content is restored before any dependent build step.
+      - name: Restore pinned universal SDL2 build
+        id: sdl2-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            sdl2-arm64
+            sdl2-x86_64
+          key: owner-game-macos15-intel-sdl2-2.32.10-${{ hashFiles('tools/mac/build_sdl2.sh') }}
+
+      - name: Set up compiler cache
+        run: |
+          if ! command -v ccache >/dev/null 2>&1; then brew install ccache; fi
+          ccache --version
+
+      - name: Restore native compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: owner-game-macos15-intel-ccache-v1-${{ github.sha }}
+          restore-keys: |
+            owner-game-macos15-intel-ccache-v1-
+
       - name: Download SDL2 source
+        if: steps.sdl2-cache.outputs.cache-hit != 'true'
         run: |
           curl -L \
             -o SDL2.tar.gz \
@@ -62,6 +87,7 @@ jobs:
           tar -xzf SDL2.tar.gz
 
       - name: Build universal SDL2
+        if: steps.sdl2-cache.outputs.cache-hit != 'true'
         run: |
           tools/mac/build_sdl2.sh \
             "$GITHUB_WORKSPACE/SDL2-2.32.10" \
@@ -76,6 +102,11 @@ jobs:
       - name: Build Owner Game Bosman Mac app
         env:
           PATH: ${{ github.workspace }}/.venv/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPILERCHECK: content
+          CCACHE_MAXSIZE: 2G
         run: |
           set +e
           tools/mac/make_app.sh \

@@ -5,12 +5,12 @@ on:
   push:
     branches:
       - owner-game-offer-roundtrip
+      - owner-game-active-dev
     paths:
-      - src/recomp_rt/win/owner_game_manager_trace.c
-      - src/recomp_rt/win/owner_game_contract_submit_trace.c
-      - tests/owner_game/manager_trace_parity.py
-      - tests/owner_game/offer_delayed_lifecycle.py
-      - .github/workflows/owner-game-fast-source-checks.yml
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - '.github/workflows/owner-game-fast-source-checks.yml'
 
 jobs:
   source-checks:
@@ -31,6 +31,8 @@ jobs:
             tests/owner_game/manager_trace_parity.py \
             tests/owner_game/offer_delayed_lifecycle.py \
             tests/owner_game/offer_roundtrip.py
+      - name: Validate fast development and cached integration workflow
+        run: python3 tests/owner_game/test_ci_workflows.py
       - name: Ensure Manager Desk wraps verified native methods and never substitutes football outcomes
         run: |
           python3 - <<'PY'
