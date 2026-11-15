@@ -1,13 +1,10 @@
 name: Owner Game Native Offer Save/Reload
 
+# Keep this reusable as an explicit manual regression against an older Mac
+# artifact. The new safe-point observer requires a newly compiled executable;
+# the main Mac workflow now builds that binary and runs offer_roundtrip itself.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - owner-game-offer-roundtrip
-    paths:
-      - tests/owner_game/offer_roundtrip.py
-      - .github/workflows/owner-game-offer-roundtrip.yml
 
 concurrency:
   group: owner-game-offer-roundtrip-${{ github.ref }}
