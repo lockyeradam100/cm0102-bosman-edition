@@ -122,6 +122,14 @@ jobs:
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 
+      - name: Manager Desk native market observer must preserve football saves
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/manager_trace_parity.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
+
       - name: Verify native submitted offer survives reload and pending readback
         if: github.ref == 'refs/heads/owner-game-offer-roundtrip'
         run: |

@@ -36,6 +36,7 @@
 - [ ] P1-02 Fix generic staff/player contract pending lifecycle; check 3 ordinary players, 2 staff, a contracted manager and a free agent in addition to the Figo fixture.
 - [ ] P1-03 Complete player transfers, fees, loans, free agency, renewal, release/mutual termination and compensation test scenarios.
 - [ ] P1-04 Complete manager/staff search, hire, authority and dismissal test scenarios in native football mode.
+  - **15 Nov 2026 native adapter milestone, pending CI:** `src/recomp_rt/win/owner_game_manager_trace.c` provides opt-in, non-mutating coverage of CM daily manager updates, vacancy processing, appointments (staff/club postcheck), departures and board support requests. `tests/owner_game/manager_trace_parity.py` compares identical five-day native saves with trace OFF/OFF/ON. This is not owner-authorised hiring, poaching, compensation or dismissal; P4-01 remains open. GitHub run evidence required before calling the adapter verified.
 - [ ] P1-05 Complete tactics, formations, selection, set pieces, captaincy, training and injury/registration paths with manual/delegated behaviours.
 - [ ] P1-06 Test reserve/youth backgrounds, development and promotion pathways, not forced manual reserves.
 - [ ] P1-07 Test domestic leagues, cups, foreign/background leagues, Europe, friendlies, referee/weather, rules and world news across complete season.
