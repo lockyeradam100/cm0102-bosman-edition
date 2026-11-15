@@ -9,11 +9,11 @@ on:
       - owner-game-contract-lifecycle
       - owner-game-offer-roundtrip
 
-# Later commits supersede earlier experiments on the same branch.
-# Keep the known-good live and test branches independent.
+# Allow the currently running baseline Mac build to finish before the next
+# commit's integration gate. Keep known-good branches independent.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-mac:
@@ -128,6 +128,15 @@ jobs:
           set -eu
           APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
           python3 tests/owner_game/offer_roundtrip.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
+
+      - name: Verify delayed native contract resolution and second reload
+        if: github.ref == 'refs/heads/owner-game-offer-roundtrip'
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/offer_delayed_lifecycle.py \
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 

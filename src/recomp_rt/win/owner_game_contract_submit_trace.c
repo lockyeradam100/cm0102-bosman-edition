@@ -261,3 +261,35 @@ void owner_game_contract_safe_point(void)
             staff_id, club_id, found ? "open_offer_present" : "open_offer_absent",
             year, month, day);
 }
+
+
+/*
+ * Native CM contract completion evidence. The existing add/remove hooks can
+ * only tell us that an offer was placed or taken off the pending list. Only
+ * CONTRACT_MANAGER::sign_contract can prove that CM really signed terms.
+ *
+ * This wrapper is completely passive: it calls the original once, then
+ * records successful signings made by the human club. No nested callbacks,
+ * owner-created contract records or changes to the native save format.
+ * A missing sign event must never be interpreted as a player rejection.
+ */
+void o_004cf720(void);
+RT_WRAP(004cf720, owner_game_trace_sign_contract)
+{
+    int observe = 0;
+    int32_t staff_id = -1, club_id = -1;
+    uint32_t terms = rt_arg(0);
+    uint32_t caller = read_u32(cpu.esp);
+
+    if (trace_enabled() && address_ok(terms, OG_STAFF_CONTRACT_CLUB + 4)) {
+        staff_id = (int32_t)read_u32(terms + OG_STAFF_CONTRACT_STAFF);
+        club_id = (int32_t)read_u32(terms + OG_STAFF_CONTRACT_CLUB);
+        observe = staff_id >= 0 && club_id >= 0 &&
+                  club_id == current_human_club_id();
+    }
+
+    o_004cf720();
+    if (rt_unwinding || !observe || !cpu.eax) return;
+    watch_offer(staff_id, club_id);
+    record("native_sign_succeeded", caller, staff_id, club_id, 0, 0, 0);
+}
