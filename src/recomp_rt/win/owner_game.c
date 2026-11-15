@@ -319,9 +319,11 @@ static void process_command(void)
 
 /* Bosman already owns the one wrapper around game_run_human_turn in testrun.c. Keep that wrapper canonical
  * and let it call these ordinary hooks before and after the original human turn. */
+void owner_game_contract_safe_point(void);
 void owner_game_before_human_turn(void)
 {
     write_state();
+    owner_game_contract_safe_point(); /* Read-only, explicit opt-in only. */
 }
 
 void owner_game_after_human_turn(void)
