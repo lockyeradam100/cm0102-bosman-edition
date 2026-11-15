@@ -23,6 +23,8 @@
 #define OG_STAFF_CONTRACT_STAFF   0x00u
 #define OG_STAFF_CONTRACT_CLUB    0x04u
 #define OG_TRACE_FILE             "owner-game-contract-submit.log"
+#define OG_FIND_CONTRACT_OFFER    0x004cc9e0u
+#define OG_WATCH_STAFF_ENV        "RECOMP_OWNER_CONTRACT_WATCH_STAFF"
 #define OG_MAX_WATCHED            96u
 
 /* Ephemeral diagnostic watchlist. No pointers or fake offer statuses are
@@ -36,6 +38,10 @@ static OgWatchedOffer watched[OG_MAX_WATCHED];
 static size_t watched_count;
 static size_t next_replace;
 static int trace_announced;
+static uint32_t last_native_manager;   /* Ephemeral pointer; never written to a save. */
+static int watch_staff_loaded;
+static int32_t watch_staff_id = -1;
+
 
 static void watch_offer(int32_t staff_id, int32_t club_id)
 {
@@ -70,6 +76,30 @@ static int address_ok(uint32_t address, uint32_t bytes)
 static uint32_t read_u32(uint32_t address)
 {
     return address_ok(address, 4) ? rd32(g_mem, address) : 0;
+}
+
+/* Strictly opt-in test/readback mode. In particular, no native lookup is
+ * made from an add/remove/daily mutation hook. The lookup is performed at
+ * the human-turn safe point, after the contract day's processing finished. */
+static int32_t watched_staff_from_env(void)
+{
+    if (!watch_staff_loaded) {
+        watch_staff_loaded = 1;
+        const char *v = getenv(OG_WATCH_STAFF_ENV);
+        if (v && *v) {
+            char *end = NULL;
+            long n = strtol(v, &end, 10);
+            if (end != v && *end == '\0' && n >= 0 && n <= 20000000)
+                watch_staff_id = (int32_t)n;
+        }
+    }
+    return watch_staff_id;
+}
+
+static void remember_native_manager(uint32_t manager)
+{
+    if (watched_staff_from_env() >= 0 && address_ok(manager, 0x40u))
+        last_native_manager = manager;
 }
 
 static int32_t current_human_club_id(void)
@@ -124,6 +154,7 @@ RT_WRAP(004cc490, owner_game_trace_add_contract_offer)
         staff_id = (int32_t)read_u32(offer + OG_STAFF_CONTRACT_STAFF);
         club_id = (int32_t)read_u32(offer + OG_STAFF_CONTRACT_CLUB);
     }
+    remember_native_manager(cpu.ecx);
     int observe = staff_id >= 0 && club_id >= 0 &&
                   club_id == current_human_club_id();
 
@@ -168,6 +199,7 @@ RT_WRAP(004cca70, owner_game_trace_remove_contract_offer)
 void o_004c7ac0(void);
 RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
 {
+    remember_native_manager(cpu.ecx);
     if (!trace_enabled()) {
         o_004c7ac0();
         return;
@@ -186,4 +218,46 @@ RT_WRAP(004c7ac0, owner_game_trace_daily_contracts)
         record("native_daily_pass", 0, watched[i].staff_id,
                watched[i].club_id, 0, 0, 0);
     }
+}
+
+/* Captures the native ContractManager pointer during native save loading.
+ * Does not inspect or alter offers during the load transaction. */
+void o_004db5c0(void);
+RT_WRAP(004db5c0, owner_game_trace_load_contracts)
+{
+    remember_native_manager(cpu.ecx);
+    o_004db5c0();
+}
+
+/* Called only at the existing native human-turn safe point. This performs
+ * one observational native query for the explicitly watched staff+club.
+ * A NULL result means "not in open-offer list at this instant"; it is NOT
+ * evidence of a rejection. The return pointer is never kept or persisted.
+ * A fresh process must rediscover the actual ContractManager after reload. */
+void owner_game_contract_safe_point(void)
+{
+    int32_t staff_id = watched_staff_from_env();
+    if (staff_id < 0) return;
+    int32_t club_id = current_human_club_id();
+    if (club_id < 0 || !address_ok(last_native_manager, 0x40u)) {
+        fprintf(stderr,
+                "owner-game: contract safe_point staff=%d club=%d status=unavailable\n",
+                staff_id, club_id);
+        return;
+    }
+
+    Cpu saved = cpu;
+    uint32_t args[2] = {(uint32_t)staff_id, (uint32_t)club_id};
+    cpu.ecx = last_native_manager;
+    uint32_t found = rt_callback(OG_FIND_CONTRACT_OFFER, 2, args);
+    if (rt_unwinding) return;
+    cpu = saved;
+
+    int year = 0, month = 0, day = 0;
+    win_game_date(&year, &month, &day);
+    fprintf(stderr,
+            "owner-game: contract safe_point staff=%d club=%d status=%s "
+            "date=%04d-%02d-%02d\n",
+            staff_id, club_id, found ? "open_offer_present" : "open_offer_absent",
+            year, month, day);
 }
