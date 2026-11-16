@@ -253,6 +253,19 @@ int owner_game_delegate_next_from_safe_point(void)
     return manager ? delegate_arm(manager) : -1;
 }
 
+/* Read-only native delegation status for the Manager Desk snapshot.
+ * 0 = none, 1 = armed before kick-off, 2 = native manager already handling
+ * the fixture. A stale club/manager identity must never be shown as active.
+ * This is process-local evidence, NOT a save/reload guarantee. */
+int owner_game_delegation_status(void)
+{
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    if (slot < 0 || !delegated_fixture[slot] ||
+        !delegate_context_matches(slot, manager)) return 0;
+    return delegated_started[slot] ? 2 : 1;
+}
+
 /* Cancel only while the manager has not yet taken control. Once the
  * native holiday has begun, the fixture must finish or the player must
  * manually return via CM; resetting flags here could strand a match. */
