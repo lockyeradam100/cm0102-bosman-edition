@@ -510,6 +510,9 @@ static void owner_game_manager_desk(const char *state, const char *club,
 {
     char manager[96] = "", controller[96] = "", message[1000];
     char command_path[1200];
+    int delegation_status = 0;
+    const char *phase = strstr(state, "\"delegation_status\": ");
+    if (phase) sscanf(phase, "\"delegation_status\": %d", &delegation_status);
     const char *at = strstr(state, "\"native_manager_name\": \"");
     if (at) sscanf(at, "\"native_manager_name\": \"%95[^\"]", manager);
     at = strstr(state, "\"controller_name\": \"");
@@ -520,10 +523,13 @@ static void owner_game_manager_desk(const char *state, const char *club,
         "Delegate the next first-team fixture using CM's existing holiday "
         "and assistant-manager engine. CM calculates the actual result; "
         "your game returns to normal control afterwards.\n\n"
+        "Native delegation: %s\n\n"
         "Manager hiring, poaching, contract compensation and dismissal "
         "are not yet enabled.",
         club, date, manager[0] ? manager : "Not recorded",
-        controller[0] ? controller : "Not recorded");
+        controller[0] ? controller : "Not recorded",
+        delegation_status == 2 ? "Manager handling fixture" :
+        delegation_status == 1 ? "Armed for next fixture" : "Not armed");
     const SDL_MessageBoxButtonData buttons[] = {
         {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Delegate Next Match"},
         {0, 2, "Cancel Delegation"},
@@ -535,6 +541,14 @@ static void owner_game_manager_desk(const char *state, const char *club,
     };
     int chosen = 0;
     if (SDL_ShowMessageBox(&box, &chosen) != 0 || (chosen != 1 && chosen != 2)) return;
+    if ((chosen == 1 && delegation_status != 0) ||
+        (chosen == 2 && delegation_status != 1)) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Manager Desk",
+            delegation_status == 2 ? "The manager has already taken control of the fixture." :
+            delegation_status == 1 ? "Delegation is already armed; cancel it first." :
+            "No pending delegation is available to cancel.", window);
+        return;
+    }
     if (!win_user_dir[0] || strlen(session) != 16 || club_id < 0) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Manager Desk",
             "No valid active club session. Continue the game and reopen the desk.",
