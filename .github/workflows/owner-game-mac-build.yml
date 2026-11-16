@@ -153,7 +153,7 @@ jobs:
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 
-       - name: Prove contract trace does not change native football saves
+      - name: Prove contract trace does not change native football saves
         run: |
           set -eu
           APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
