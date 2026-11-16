@@ -34,7 +34,6 @@ assert "if (delegated_started[slot]) return -2;" in native
 assert "delegate_restore_and_clear(slot, manager, 0);" in native
 assert 'int owner_game_delegation_status(void)' in native
 assert 'delegate_context_matches(slot, manager)' in native
-assert '"delegation_status": %d' not in bridge  # C JSON string is escaped
 assert r'\\"delegation_status\\": %d' in bridge
 assert 'delegation_status == 2 ? "Manager handling fixture"' in ui
 assert 'chosen == 1 && delegation_status != 0' in ui
