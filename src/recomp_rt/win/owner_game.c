@@ -12,6 +12,7 @@
  * POC command file (owner-game-command.txt):
  *   inject_cash <session_hex> <club_id> <amount>
  *   delegate_match <session_hex> <club_id>
+ *   cancel_delegation <session_hex> <club_id>
  *
  * Native match delegation uses the same holiday/fixture path as the game's
  * left-bar action. It never simulates a result or modifies the game from SDL.
@@ -298,9 +299,10 @@ static void process_command(void)
                         action, &session, &club_id, &amount_ll, extra);
     int is_investment = strcmp(action, "inject_cash") == 0;
     int is_delegation = strcmp(action, "delegate_match") == 0;
-    if ((!is_investment && !is_delegation) ||
+    int is_cancel = strcmp(action, "cancel_delegation") == 0;
+    if ((!is_investment && !is_delegation && !is_cancel) ||
         (is_investment && fields != 4) ||
-        (is_delegation && fields != 3)) {
+        ((is_delegation || is_cancel) && fields != 3)) {
         write_result("rejected", "invalid command", NULL, 0, 0, 0);
         return;
     }
@@ -318,6 +320,19 @@ static void process_command(void)
         write_result("rejected", "wrong club", &s, (int64_t)amount_ll, s.balance, s.balance);
         return;
     }
+    if (is_cancel) {
+        extern int owner_game_cancel_delegation_from_safe_point(void);
+        int result = owner_game_cancel_delegation_from_safe_point();
+        const char *message = result == 1 ? "delegation cancelled before kick-off" :
+                              result == 0 ? "no delegation pending" :
+                              result == -2 ? "manager already controlling fixture" :
+                              "no valid delegation for active human manager";
+        write_result(result == 1 ? "applied" : "rejected",
+                     message, &s, 0, s.balance, s.balance);
+        fprintf(stderr, "owner-game: cancel_delegation club=%d result=%d (%s)\n",
+                s.club_id, result, message);
+        return;
+    }
     if (is_delegation) {
         /* A safe-point operation: calls the exact native path also used by
          * "Let Manager Handle Next Match" on CM's left-side menu. The request
@@ -328,6 +343,7 @@ static void process_command(void)
             result == 1 ? "native next-match delegation armed" :
             result == 0 ? "no match in next 60 days" :
             result == -2 ? "already on holiday" :
+            result == -3 ? "next match already delegated" :
             "no valid human manager";
         write_result(result == 1 ? "applied" : "rejected",
                      message, &s, 0, s.balance, s.balance);

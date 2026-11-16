@@ -526,14 +526,15 @@ static void owner_game_manager_desk(const char *state, const char *club,
         controller[0] ? controller : "Not recorded");
     const SDL_MessageBoxButtonData buttons[] = {
         {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Delegate Next Match"},
+        {0, 2, "Cancel Delegation"},
         {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Close"}
     };
     SDL_MessageBoxData box = {
         SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Manager Desk",
-        message, 2, buttons, NULL
+        message, 3, buttons, NULL
     };
     int chosen = 0;
-    if (SDL_ShowMessageBox(&box, &chosen) != 0 || chosen != 1) return;
+    if (SDL_ShowMessageBox(&box, &chosen) != 0 || (chosen != 1 && chosen != 2)) return;
     if (!win_user_dir[0] || strlen(session) != 16 || club_id < 0) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Manager Desk",
             "No valid active club session. Continue the game and reopen the desk.",
@@ -557,7 +558,9 @@ static void owner_game_manager_desk(const char *state, const char *club,
             "Could not queue the delegation request.", window);
         return;
     }
-    int wrote = fprintf(fp, "delegate_match %s %d\n", session, club_id);
+    int wrote = fprintf(fp, "%s %s %d\n",
+                        chosen == 1 ? "delegate_match" : "cancel_delegation",
+                        session, club_id);
     int closed = fclose(fp);
     if (wrote <= 0 || closed != 0) {
         remove(command_path);
@@ -566,9 +569,11 @@ static void owner_game_manager_desk(const char *state, const char *club,
         return;
     }
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Manager Desk",
+        chosen == 1 ?
         "Delegation requested. Click Continue Game to arm it in CM. "
-        "The game will simulate your next match and return control. "
-        "You may cancel before kick-off from the native left-side menu.",
+        "The game will simulate your next match and return control." :
+        "Cancellation requested. Click Continue Game to apply it. "
+        "Cancellation is only possible before CM takes over the fixture.",
         window);
 }
 

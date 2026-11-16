@@ -53,7 +53,7 @@
 - [ ] P3-03 Interest, repayments, cash availability, insufficient-funds, retries and save/reload.
 - [ ] P4-01 Appoint/poach/support/review/dismiss manager with native staff links, compensation and relationship effects.
 - [ ] P5-01 Native instant result + attendance toggle and role delegation.
-- [ ] P5-02 Save and reload between arming delegation and kick-off, no double match.
+- **16 Nov 2026 P5-01 incremental hardening (pending CI):** Manager Desk now exposes a cancel-before-kick-off command, validated against the active process/club at the native human-turn boundary. Repeated delegation returns an explicit already-armed status rather than overwriting the target fixture. A cancellation after the native manager has started the fixture is rejected, avoiding stranded holiday settings. Fast source regression: `tests/owner_game/test_manager_desk_wiring.py`. This is **not** evidence of matchday save/reload or a fully playable ownership lifecycle; P5-01/P5-02 remain open.\n- [ ] P5-02 Save and reload between arming delegation and kick-off, no double match.
 - [ ] P5-03 Persistent supporter perception for home/away/absence patterns.
 - [ ] P6-01 Complete one club/three season game, show investment → football/manager → supporters → accounts → continuation.
 - [ ] P6-02 Mac packaged upgrade and regression sign-off.

@@ -12,20 +12,27 @@ ui = (root / "src/recomp_rt/win/user32.c").read_text()
 native = (root / "src/recomp_rt/win/holiday_next.c").read_text()
 smoke = (root / "tests/owner_game/bridge_smoke.py").read_text()
 
-assert '"delegate_match %s %d\\n"' in ui, "no owner-facing manager command"
+assert '"delegate_match" : "cancel_delegation"' in ui, "missing owner-facing delegation/cancel commands"
 assert 'owner_game_manager_desk(state, club, date, session, club_id)' in ui
 assert "if (k == SDLK_o && (mod & KMOD_SHIFT)" in ui, "Mac shortcut absent"
 assert 'native_manager_name' in bridge
 assert 'controller_name' in bridge
 assert "native_manager_id" in smoke and "controller_name" in smoke
 assert 'strcmp(action, "delegate_match") == 0' in bridge
-assert "(is_delegation && fields != 3)" in bridge
+assert "((is_delegation || is_cancel) && fields != 3)" in bridge
 assert "if ((uint64_t)session != og_session)" in bridge
 assert "if (club_id != s.club_id)" in bridge
 assert 'host_unlink(path);' in bridge, "one-shot commands must not be replayed"
 assert "owner_game_delegate_next_from_safe_point();" in bridge
+assert "owner_game_cancel_delegation_from_safe_point();" in bridge
+assert 'strcmp(action, "cancel_delegation") == 0' in bridge
+assert 'result == -3 ? "next match already delegated"' in bridge
 assert "int owner_game_delegate_next_from_safe_point(void)" in native
 assert "return manager ? delegate_arm(manager) : -1;" in native
+assert "if (delegate_context_matches(slot, manager)) return -3;" in native
+assert "if (delegated_started[slot]) return -2;" in native
+assert "delegate_restore_and_clear(slot, manager, 0);" in native
+assert '"Cancel Delegation"' in ui
 assert "if (match <= today + 1) delegate_start(slot, manager);" in native
 assert "set_holiday(manager, 1);" in native
 assert "delegate_restore_and_clear(" in native

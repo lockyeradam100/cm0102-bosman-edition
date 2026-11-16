@@ -218,6 +218,12 @@ static int delegate_arm(uint32_t manager)
     int slot = human_slot(manager);
     if (slot < 0) return -1;
     uint32_t rec = record(slot);
+    /* Never overwrite a pending fixture or its saved holiday settings. A
+     * second command must not silently replace an already armed decision. */
+    if (delegated_fixture[slot]) {
+        if (delegate_context_matches(slot, manager)) return -3;
+        delegate_clear(slot); /* old career or human/club identity */
+    }
     if (rd32(g_mem, rec + ON_HOLIDAY)) return -2;
     uint32_t club = club_of(manager), fixture = 0;
     int match = club ? next_fixture_info(club, &fixture) : -1;
@@ -238,12 +244,31 @@ static int delegate_arm(uint32_t manager)
 /* Owner Game UI commands are processed only at the native human-turn safe point.
  * Reuse the exact in-game side-bar delegation path rather than setting holiday
  * flags or match results from an SDL keyboard callback. See owner_game.c.
- *  1 = armed, 0 = no match, -1 = invalid manager, -2 = already on holiday.
+ *  1 = armed, 0 = no match, -1 = invalid manager, -2 = already on holiday,
+ * -3 = already delegated.
  */
 int owner_game_delegate_next_from_safe_point(void)
 {
     uint32_t manager = current_manager();
     return manager ? delegate_arm(manager) : -1;
+}
+
+/* Cancel only while the manager has not yet taken control. Once the
+ * native holiday has begun, the fixture must finish or the player must
+ * manually return via CM; resetting flags here could strand a match. */
+int owner_game_cancel_delegation_from_safe_point(void)
+{
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    if (slot < 0) return -1;
+    if (!delegated_fixture[slot]) return 0;
+    if (!delegate_context_matches(slot, manager)) {
+        delegate_clear(slot);
+        return -1;
+    }
+    if (delegated_started[slot]) return -2;
+    delegate_restore_and_clear(slot, manager, 0);
+    return 1;
 }
 
 /* The Go on Holiday item: keep its arguments, before the wrap scales them. */
