@@ -34,7 +34,8 @@ jobs:
             tests/owner_game/offer_delayed_lifecycle.py \
             tests/owner_game/offer_roundtrip.py \
             tests/owner_game/bridge_smoke.py \
-            tests/owner_game/test_manager_desk_wiring.py
+            tests/owner_game/test_manager_desk_wiring.py \
+            tests/owner_game/manager_desk_native_commands.py
       - name: Validate fast development and cached integration workflow
         run: python3 tests/owner_game/test_ci_workflows.py
       - name: Check Manager Desk action is authenticated and enters the native game only at a safe point

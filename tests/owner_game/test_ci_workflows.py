@@ -23,6 +23,7 @@ assert "CCACHE_DIR:" in mac
 assert "ccache-v1-" in mac
 for gate in (
     "Owner Game real Arsenal save and reload smoke",
+    "Manager Desk owner command must arm and cancel native one-match delegation",
     "Prove contract trace does not change native football saves",
     "Manager Desk native market observer must preserve football saves",
     "Verify native submitted offer survives reload and pending readback",
