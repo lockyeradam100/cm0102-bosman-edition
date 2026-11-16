@@ -11,6 +11,18 @@ root = Path(__file__).resolve().parents[2]
 mac = (root / ".github/workflows/owner-game-mac-build.yml").read_text()
 fast = (root / ".github/workflows/owner-game-fast-source-checks.yml").read_text()
 
+# A one-space indentation error in a native Mac test step once stopped the
+# entire GitHub workflow before any jobs could run. Enforce the GitHub Actions
+# step list indentation without introducing another Python dependency.
+steps = [(number, line) for number, line in enumerate(mac.splitlines(), 1)
+         if line.lstrip().startswith("- name:")]
+assert steps, "Mac integration workflow contains no named steps"
+for number, line in steps:
+    assert line.startswith("      - name: "), (
+        f"Mac CI workflow line {number}: invalid step indentation {line!r}"
+    )
+assert "tests/owner_game/manager_desk_native_commands.py" in fast
+
 assert "owner-game-active-dev" in fast, "active development must get fast CI"
 assert "owner-game-active-dev" not in mac, "dev pushes must not rebuild universal Mac binary"
 assert "owner-game-offer-roundtrip" in mac, "release integration branch is missing"
