@@ -311,7 +311,7 @@ void holiday_widget_after(void)
     memcpy(args, item_args, sizeof args);
     uint32_t manager = current_manager();
     int slot = human_slot(manager);
-    args[13] = slot >= 0 && delegated_fixture[slot] ? cancel_text : delegate_text;
+    args[13] = slot >= 0 && delegate_context_matches(slot, manager) ? cancel_text : delegate_text;
     if (args[15] == HOLIDAY_ID) args[15] = DELEGATE_MATCH_ID;
     call_this(0x55f990u, item_display, 18, args);
     cpu.eax = eax;
@@ -366,7 +366,7 @@ RT_WRAP(007615d0, side_bar_input)
         if (id == DELEGATE_MATCH_ID) {
             uint32_t manager = current_manager();
             int slot = human_slot(manager);
-            if (slot >= 0 && delegated_fixture[slot]) {
+            if (slot >= 0 && delegate_context_matches(slot, manager)) {
                 /* Route sidebar cancellation through the same identity-checked
                  * transition as the authenticated Manager Desk command. An
                  * old career's pending fixture must not be cancelled as if
