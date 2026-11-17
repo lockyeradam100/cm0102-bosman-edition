@@ -48,6 +48,12 @@ assert "owner_game_cancel_delegation_from_safe_point();" in sidebar
 assert "delegate_restore_and_clear(slot, manager, 0);" not in sidebar, (
     "sidebar must not bypass current-career identity checks"
 )
+assert "if (slot >= 0 && delegate_context_matches(slot, manager))" in sidebar, (
+    "stale career delegation must not intercept the new career sidebar action"
+)
+assert "args[13] = slot >= 0 && delegate_context_matches(slot, manager) ? cancel_text : delegate_text;" in native, (
+    "sidebar label must follow authenticated active manager/club, not stale slot state"
+)
 assert "No valid delegation for the current club and manager." in sidebar
 assert "o_007615d0();" in native, "native sidebar behavior must remain"
 assert "owner_game_delegate_next_from_safe_point" not in ui
