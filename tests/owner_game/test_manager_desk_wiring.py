@@ -42,6 +42,13 @@ assert '"Cancel Delegation"' in ui
 assert "if (match <= today + 1) delegate_start(slot, manager);" in native
 assert "set_holiday(manager, 1);" in native
 assert "delegate_restore_and_clear(" in native
+# Sidebar and command-file cancellation must share one identity-checked transition.
+sidebar = native[native.index("if (id == DELEGATE_MATCH_ID)"):native.index("/* The holiday setter")]
+assert "owner_game_cancel_delegation_from_safe_point();" in sidebar
+assert "delegate_restore_and_clear(slot, manager, 0);" not in sidebar, (
+    "sidebar must not bypass current-career identity checks"
+)
+assert "No valid delegation for the current club and manager." in sidebar
 assert "o_007615d0();" in native, "native sidebar behavior must remain"
 assert "owner_game_delegate_next_from_safe_point" not in ui
 assert "rt_callback(" not in ui[ui.index("static void owner_game_manager_desk"):ui.index("static void owner_game_overview")], "SDL input must not mutate native game"
