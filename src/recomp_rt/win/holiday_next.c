@@ -367,12 +367,17 @@ RT_WRAP(007615d0, side_bar_input)
             uint32_t manager = current_manager();
             int slot = human_slot(manager);
             if (slot >= 0 && delegated_fixture[slot]) {
-                if (delegated_started[slot]) {
-                    delegate_message("The manager is already handling this match. Control returns automatically after the result.");
-                } else {
-                    delegate_restore_and_clear(slot, manager, 0);
+                /* Route sidebar cancellation through the same identity-checked
+                 * transition as the authenticated Manager Desk command. An
+                 * old career's pending fixture must not be cancelled as if
+                 * it belonged to the newly loaded club. */
+                int cancelled = owner_game_cancel_delegation_from_safe_point();
+                if (cancelled == 1)
                     delegate_message("Delegation cancelled. You will attend and manage the match normally.");
-                }
+                else if (cancelled == -2)
+                    delegate_message("The manager is already handling this match. Control returns automatically after the result.");
+                else
+                    delegate_message("No valid delegation for the current club and manager.");
             } else {
                 int armed = manager ? delegate_arm(manager) : -1;
                 if (armed == 1)
