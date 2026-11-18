@@ -25,6 +25,18 @@ assert "tests/owner_game/manager_desk_native_commands.py" in fast
 
 assert "owner-game-active-dev" in fast, "active development must get fast CI"
 assert "owner-game-active-dev" not in mac, "dev pushes must not rebuild universal Mac binary"
+release_guide = root / "docs/owner-game/HOLIDAY_EDITION_2026-11-24.md"
+assert release_guide.is_file(), "Holiday Edition installation and acceptance guide missing"
+guide = release_guide.read_text()
+assert "24 November 2026" in guide
+assert "43899286537" in guide, "last verified Mac fallback must be explicit"
+assert "Application Support/cm0102" in guide, "user save backup guidance absent"
+assert "Assemble Owner Game Holiday Mac download" in mac
+assert "name: Owner-Game-Holiday-Mac" in mac
+assert "build-owner-mac/holiday-release/*" in mac
+assert "READ-ME-FIRST.txt" in mac
+assert "test \"$(find build-owner-mac/holiday-release" in mac, "single-package guard missing"
+assert "Manager Desk owner command must arm and cancel native one-match delegation" in mac
 assert "owner-game-offer-roundtrip" in mac, "release integration branch is missing"
 assert "workflow_dispatch:" in mac, "manual Mac integration should remain possible"
 assert "sdl2-cache" in mac

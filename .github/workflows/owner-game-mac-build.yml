@@ -187,12 +187,31 @@ jobs:
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 
+      # Ship ONE Mac installer, not both duplicate .dmg and .zip copies.
+      # The independent user guide accompanies the installer in the artifact.
+      - name: Assemble Owner Game Holiday Mac download
+        run: |
+          set -eu
+          mkdir -p build-owner-mac/holiday-release
+          cp docs/owner-game/HOLIDAY_EDITION_2026-11-24.md \
+            build-owner-mac/holiday-release/READ-ME-FIRST.txt
+          DMG=$(find build-owner-mac -maxdepth 1 -type f -name '*.dmg' -print -quit)
+          if [ -n "$DMG" ] && [ -s "$DMG" ]; then
+            cp "$DMG" build-owner-mac/holiday-release/Owner-Game-Holiday-Mac.dmg
+            echo "Publishing complete installable Mac DMG"
+          else
+            cp build-owner-mac/Owner-Game-Mac-Complete.zip \
+              build-owner-mac/holiday-release/Owner-Game-Mac-Complete.zip
+            echo "Publishing complete Mac app ZIP fallback"
+          fi
+          find build-owner-mac/holiday-release -maxdepth 1 -type f -print
+          test "$(find build-owner-mac/holiday-release -maxdepth 1 \
+            \( -name '*.dmg' -o -name '*.zip' \) | wc -l | tr -d ' ')" -eq 1
+
       - name: Save Mac build
         uses: actions/upload-artifact@v4
         with:
-          name: Owner-Game-Bosman-Mac
-          path: |
-            build-owner-mac/*.dmg
-            build-owner-mac/Owner-Game-Mac-Complete.zip
+          name: Owner-Game-Holiday-Mac
+          path: build-owner-mac/holiday-release/*
           if-no-files-found: error
           retention-days: 90
