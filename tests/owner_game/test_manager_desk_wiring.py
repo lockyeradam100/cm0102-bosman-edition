@@ -31,6 +31,16 @@ assert "int owner_game_delegate_next_from_safe_point(void)" in native
 assert "return manager ? delegate_arm(manager) : -1;" in native
 assert "if (delegate_context_matches(slot, manager)) return -3;" in native
 assert "if (delegated_started[slot]) return -2;" in native
+# Two independent holiday controllers must never claim the same human fixture.
+assert "rd32(g_mem, rec + ON_HOLIDAY) || marked[slot]" in native
+legacy = native[native.index("if (id == NEXT_MATCH_ID)"):native.index("if (id == DELEGATE_MATCH_ID)")]
+assert "delegate_context_matches(active_slot, active_manager)" in legacy
+assert "Cancel the pending manager delegation" in legacy
+assert "rt_ret_cdecl((uint32_t)-4);" in legacy
+setter = native[native.index("RT_WRAP(005fd2f0, holiday_set)"):native.index("void holiday_next_turn(void)")]
+assert "if (delegate_context_matches(slot," in setter
+assert "pending = 0;" in setter
+
 assert "delegate_restore_and_clear(slot, manager, 0);" in native
 assert 'int owner_game_delegation_status(void)' in native
 assert 'delegate_context_matches(slot, manager)' in native
