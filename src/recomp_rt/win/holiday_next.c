@@ -224,7 +224,10 @@ static int delegate_arm(uint32_t manager)
         if (delegate_context_matches(slot, manager)) return -3;
         delegate_clear(slot); /* old career or human/club identity */
     }
-    if (rd32(g_mem, rec + ON_HOLIDAY)) return -2;
+    /* The legacy 'holiday until next match' also owns this manager's holiday
+     * transition. Never arm a second controller that would overwrite its
+     * return-to-play semantics or unexpectedly restore team settings. */
+    if (rd32(g_mem, rec + ON_HOLIDAY) || marked[slot]) return -2;
     uint32_t club = club_of(manager), fixture = 0;
     int match = club ? next_fixture_info(club, &fixture) : -1;
     if (match < 0 || !fixture) return 0;
@@ -350,6 +353,13 @@ RT_WRAP(007615d0, side_bar_input)
         int id = (int16_t)rd16(g_mem, display + 0xba966u + (uint32_t)w * 0x18cu);
         if (id == HOLIDAY_ID) pending = 0;
         if (id == NEXT_MATCH_ID) {
+            uint32_t active_manager = current_manager();
+            int active_slot = human_slot(active_manager);
+            if (active_slot >= 0 && delegate_context_matches(active_slot, active_manager)) {
+                message("Cancel the pending manager delegation before starting holiday until next match.");
+                rt_ret_cdecl((uint32_t)-4);
+                return;
+            }
             uint32_t manager = current_manager();
             uint32_t club = manager ? club_of(manager) : 0;
             if (!club || next_fixture(club) < 0) {
@@ -404,6 +414,13 @@ RT_WRAP(005fd2f0, holiday_set)
     o_005fd2f0();
     if (slot < 0) return;
     if (value && pending) {
+        /* A confirmation may outlive the sidebar that opened it. If another
+         * action armed delegation in between, do not mark a competing holiday
+         * controller. Native holiday remains CM-owned. */
+        if (delegate_context_matches(slot, rt_arg(1) ? rt_arg(1) : current_manager())) {
+            pending = 0;
+            return;
+        }
         marked[slot] = 1;
         pending = 0;
         fprintf(stderr, "recomp: holiday until next match for human %d\n", slot);
