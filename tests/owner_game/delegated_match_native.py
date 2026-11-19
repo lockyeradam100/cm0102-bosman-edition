@@ -59,6 +59,8 @@ def test(program, game, root):
     queued = False
     applied = False
     completed = False
+    completion_seen_at = None
+    confirmed_stable = False
     start_date = None
     end_date = None
     with log_path.open("wb") as log:
@@ -89,13 +91,24 @@ def test(program, game, root):
                         raise AssertionError(f"delegation not applied: {result}")
                     applied = True
                 if state and state.get("delegated_match_completed") is True:
+                    if not applied:
+                        raise AssertionError("native completion appeared before accepted delegation")
                     if state.get("delegation_status") != 0:
                         raise AssertionError(f"CM did not return control: {state}")
-                    completed = True
-                    end_date = state.get("date")
-                    print(f"CHECK native delegated fixture completed at {end_date}",
-                          flush=True)
-                    break
+                    if not completed:
+                        completed = True
+                        completion_seen_at = time.monotonic()
+                        end_date = state.get("date")
+                        print(f"CHECK native delegated fixture completed at {end_date}",
+                              flush=True)
+                    # The game must remain alive with the restored human
+                    # state, not merely report completion in one transient
+                    # JSON snapshot during its holiday teardown.
+                    if time.monotonic() - completion_seen_at >= 2.0:
+                        confirmed_stable = True
+                        break
+                elif completed:
+                    raise AssertionError("completed fixture readback disappeared before stable human return")
                 time.sleep(0.2)
         finally:
             if proc.poll() is None:
@@ -106,12 +119,14 @@ def test(program, game, root):
                     proc.kill()
                     proc.wait(timeout=8)
     log = log_path.read_text(encoding="utf-8", errors="replace")
-    if not queued or not applied or not completed:
+    if not queued or not applied or not completed or not confirmed_stable:
         raise AssertionError(
             f"native match incomplete: queued={queued} applied={applied} "
-            f"completed={completed}\n" + log[-5000:])
+            f"completed={completed} stable={confirmed_stable}\n" + log[-5000:])
     if "owner-game: manager takes the next match" not in log:
         raise AssertionError("no native CM holiday delegation start")
+    if log.count("owner-game: delegated match complete; control returned") != 1:
+        raise AssertionError("fixture completion was not recorded exactly once")
     if "owner-game: delegated match complete; control returned" not in log:
         raise AssertionError("no native result and human control return")
     if not end_date or end_date <= start_date:
