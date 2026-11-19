@@ -511,6 +511,7 @@ static void owner_game_manager_desk(const char *state, const char *club,
     char manager[96] = "", controller[96] = "", message[1000];
     char command_path[1200];
     int delegation_status = 0;
+    int completed_native_match = strstr(state, "\"delegated_match_completed\": true") != NULL;
     const char *phase = strstr(state, "\"delegation_status\": ");
     if (phase) sscanf(phase, "\"delegation_status\": %d", &delegation_status);
     const char *at = strstr(state, "\"native_manager_name\": \"");
@@ -523,13 +524,15 @@ static void owner_game_manager_desk(const char *state, const char *club,
         "Delegate the next first-team fixture using CM's existing holiday "
         "and assistant-manager engine. CM calculates the actual result; "
         "your game returns to normal control afterwards.\n\n"
-        "Native delegation: %s\n\n"
+        "Native delegation: %s\n"
+        "Last delegated match this session: %s\n\n"
         "Manager hiring, poaching, contract compensation and dismissal "
         "are not yet enabled.",
         club, date, manager[0] ? manager : "Not recorded",
         controller[0] ? controller : "Not recorded",
         delegation_status == 2 ? "Manager handling fixture" :
-        delegation_status == 1 ? "Armed for next fixture" : "Not armed");
+        delegation_status == 1 ? "Armed for next fixture" : "Not armed",
+        completed_native_match ? "CM result recorded; human control restored" : "Not yet verified");
     const SDL_MessageBoxButtonData buttons[] = {
         {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Delegate Next Match"},
         {0, 2, "Cancel Delegation"},

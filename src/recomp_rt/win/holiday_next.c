@@ -69,6 +69,10 @@ static int32_t delegated_club_id[16];
 static unsigned char delegated_setting2[16];
 static unsigned char delegated_setting3[16];
 static unsigned char delegated_started[16];
+/* Genuine completed fixture readback, scoped to human and club. Runtime-only. */
+static int32_t completed_manager_id[16];
+static int32_t completed_club_id[16];
+static unsigned char completed_native_match[16];
 
 static uint32_t call_this(uint32_t fn, uint32_t self, int n, const uint32_t *args)
 {
@@ -233,6 +237,7 @@ static int delegate_arm(uint32_t manager)
     if (match < 0 || !fixture) return 0;
 
     delegate_clear(slot);
+    completed_native_match[slot] = 0;
     delegated_fixture[slot] = fixture;
     delegated_manager_id[slot] = (int32_t)rd32(g_mem, manager);
     delegated_club_id[slot] = (int32_t)rd32(g_mem, club);
@@ -267,6 +272,18 @@ int owner_game_delegation_status(void)
     if (slot < 0 || !delegated_fixture[slot] ||
         !delegate_context_matches(slot, manager)) return 0;
     return delegated_started[slot] ? 2 : 1;
+}
+
+/* This is set only after CM writes a genuine fixture result and human
+ * control has returned. Never confuse an arm/cancel command with gameplay. */
+int owner_game_delegated_match_completed(void)
+{
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    if (slot < 0 || !manager || !completed_native_match[slot]) return 0;
+    uint32_t club = club_of(manager);
+    return club && completed_manager_id[slot] == (int32_t)rd32(g_mem, manager) &&
+           completed_club_id[slot] == (int32_t)rd32(g_mem, club);
 }
 
 /* Cancel only while the manager has not yet taken control. Once the
@@ -443,8 +460,20 @@ void holiday_next_turn(void)
             uint32_t rec = record(slot);
             int played = (int8_t)g_mem[fixture + 0x43] != -1;
             if (played) {
-                delegate_restore_and_clear(slot, manager, delegated_started[slot] && rd32(g_mem, rec + ON_HOLIDAY));
-                fprintf(stderr, "owner-game: delegated match complete; control returned to human %d\n", slot);
+                int started = delegated_started[slot];
+                int32_t manager_id = delegated_manager_id[slot];
+                int32_t club_id = delegated_club_id[slot];
+                delegate_restore_and_clear(slot, manager, started && rd32(g_mem, rec + ON_HOLIDAY));
+                /* A result without a verified return from native holiday is
+                 * not a completed owner delegation. */
+                if (started && !rd32(g_mem, rec + ON_HOLIDAY)) {
+                    completed_manager_id[slot] = manager_id;
+                    completed_club_id[slot] = club_id;
+                    completed_native_match[slot] = 1;
+                    fprintf(stderr, "owner-game: delegated match complete; control returned to human %d\n", slot);
+                } else {
+                    fprintf(stderr, "owner-game: fixture resolved without verified delegation return for human %d\n", slot);
+                }
             } else if (delegated_started[slot]) {
                 if (!rd32(g_mem, rec + ON_HOLIDAY)) {
                     /* The user manually returned from holiday: honour that as an override and restore settings. */

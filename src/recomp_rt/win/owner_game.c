@@ -196,6 +196,8 @@ static void write_state(void)
     }
     extern int owner_game_delegation_status(void);
     int delegation_status = owner_game_delegation_status();
+    extern int owner_game_delegated_match_completed(void);
+    int delegated_match_completed = owner_game_delegated_match_completed();
     snprintf(text, sizeof text,
              "{\n"
              "  \"bridge_version\": \"0.4-poc\",\n"
@@ -210,12 +212,14 @@ static void write_state(void)
              "  \"native_manager_name\": \"%s\",\n"
              "  \"controller_name\": \"%s\",\n"
              "  \"delegation_status\": %d,\n"
+             "  \"delegated_match_completed\": %s,\n"
              "  \"command\": \"inject_cash %016llx %d 5000000\"\n"
              "}\n",
              (unsigned long long)og_session,
              s.year, s.month, s.day, s.slot, s.club_id, s.club_name,
              (long long)s.balance, native_manager_id, native_manager_name,
              controller_name, delegation_status,
+             delegated_match_completed ? "true" : "false",
              (unsigned long long)og_session, s.club_id);
     replace_text_file("owner-game-state.json", text);
 }

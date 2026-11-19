@@ -72,3 +72,14 @@ assert "process_command();" in bridge[bridge.index("void owner_game_after_human_
 print("No match score is computed or written by the Manager Desk.")
 print("PASS Manager Desk UI -> process-bound command -> safe-point native delegation")
 print("PASS stale session, wrong club, invalid requests guarded; native sidebar retained")
+
+# A native match must actually complete before the Manager Desk claims it.
+# A queued arm/cancel is not gameplay evidence; completion is set only when
+# CM has written the fixture result and its holiday flag has been cleared.
+assert "int owner_game_delegated_match_completed(void)" in native
+assert "completed_native_match[slot] = 1;" in native
+assert "if (started && !rd32(g_mem, rec + ON_HOLIDAY))" in native
+assert "completed_manager_id[slot] == (int32_t)rd32(g_mem, manager)" in native
+assert "completed_club_id[slot] == (int32_t)rd32(g_mem, club)" in native
+assert 'delegated_match_completed' in bridge
+assert 'delegated_match_completed' in ui

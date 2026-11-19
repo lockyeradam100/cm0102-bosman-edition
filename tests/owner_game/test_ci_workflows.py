@@ -35,6 +35,7 @@ assert "Assemble Owner Game Holiday Mac download" in mac
 assert "name: Owner-Game-Holiday-Mac" in mac
 assert "build-owner-mac/holiday-release/*" in mac
 assert "READ-ME-FIRST.txt" in mac
+assert "tests/owner_game/delegated_match_native.py" in mac
 assert "test \"$(find build-owner-mac/holiday-release" in mac, "single-package guard missing"
 assert "Manager Desk owner command must arm and cancel native one-match delegation" in mac
 assert "owner-game-offer-roundtrip" in mac, "release integration branch is missing"
@@ -48,6 +49,7 @@ assert "ccache-v1-" in mac
 for gate in (
     "Owner Game real Arsenal save and reload smoke",
     "Manager Desk owner command must arm and cancel native one-match delegation",
+    "Prove delegated match reaches native result and returns human control",
     "Prove contract trace does not change native football saves",
     "Manager Desk native market observer must preserve football saves",
     "Verify native submitted offer survives reload and pending readback",
