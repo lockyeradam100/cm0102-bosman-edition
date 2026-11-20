@@ -42,14 +42,14 @@ def test(program, game, root):
     # Allow the initial safe point to consume our authenticated command,
     # then keep progressing the real game. Native holiday owns the fixture.
     # Real CM can remain on the news screen after clicking Continue. Use
-    # both its sidebar Continue action and the native Space-to-Continue
-    # shortcut, allowing any queued dialogue to finish before another turn.
+    # the native Space-to-Continue shortcut (the same tested input form as
+    # smoke_run.MATCH_STEPS), allowing queued dialogue to finish.
     # This is UI input, never a fabricated fixture result or a memory edit.
     for ms in (12000, 24000, 36000, 48000, 60000, 72000, 84000,
                96000, 108000, 120000, 132000, 144000, 156000,
                168000, 180000, 192000, 204000):
-        steps.append(f"{ms} click 45 115")
-        steps.append(f"{ms + 2000} char 32 0")
+        steps.append(f"{ms} press space")
+        steps.append(f"{ms + 2000} click 45 115")
     steps += ["228000 quit"]
     env = dict(os.environ, HOME=str(root / "home"),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
