@@ -83,3 +83,12 @@ assert "completed_manager_id[slot] == (int32_t)rd32(g_mem, manager)" in native
 assert "completed_club_id[slot] == (int32_t)rd32(g_mem, club)" in native
 assert 'delegated_match_completed' in bridge
 assert 'delegated_match_completed' in ui
+
+# The full-match Mac gate must actually advance native CM turns and expose
+# dates/phases on failure, not simply wait for a completion flag to appear.
+match_gate = (root / "tests/owner_game/delegated_match_native.py").read_text()
+assert 'steps.append(f"{ms} click 45 115")' in match_gate
+assert 'steps.append(f"{ms + 2000} char 32 0")' in match_gate
+assert 'dates={observed_dates} phases={observed_phases}' in match_gate
+assert 'state.get("delegated_match_completed") is True' in match_gate
+assert 'confirmed_stable = True' in match_gate

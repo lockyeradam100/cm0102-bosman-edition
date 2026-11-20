@@ -41,10 +41,16 @@ def test(program, game, root):
     steps = steps[:steps.index("wait first-news") + 1]
     # Allow the initial safe point to consume our authenticated command,
     # then keep progressing the real game. Native holiday owns the fixture.
-    steps += [f"{ms} click 45 115" for ms in
-              (12000, 24000, 36000, 48000, 60000, 72000, 84000,
-               96000, 108000, 120000, 132000, 144000)]
-    steps += ["170000 quit"]
+    # Real CM can remain on the news screen after clicking Continue. Use
+    # both its sidebar Continue action and the native Space-to-Continue
+    # shortcut, allowing any queued dialogue to finish before another turn.
+    # This is UI input, never a fabricated fixture result or a memory edit.
+    for ms in (12000, 24000, 36000, 48000, 60000, 72000, 84000,
+               96000, 108000, 120000, 132000, 144000, 156000,
+               168000, 180000, 192000, 204000):
+        steps.append(f"{ms} click 45 115")
+        steps.append(f"{ms + 2000} char 32 0")
+    steps += ["228000 quit"]
     env = dict(os.environ, HOME=str(root / "home"),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
                RECOMP_NO_BOX="1", RECOMP_USER_DIR=str(user),
@@ -63,6 +69,8 @@ def test(program, game, root):
     confirmed_stable = False
     start_date = None
     end_date = None
+    observed_dates = []
+    observed_phases = []
     with log_path.open("wb") as log:
         proc = subprocess.Popen([program, "--game", game, "-seed", "1"],
                                 env=env, stdout=subprocess.DEVNULL, stderr=log)
@@ -71,6 +79,13 @@ def test(program, game, root):
                 if time.monotonic() - started > TIMEOUT:
                     raise AssertionError("native fixture exceeded 300 seconds")
                 state = snapshot(state_path)
+                if state and state.get("ready"):
+                    date = state.get("date")
+                    phase = state.get("delegation_status")
+                    if date and (not observed_dates or observed_dates[-1] != date):
+                        observed_dates.append(date)
+                    if phase is not None and (not observed_phases or observed_phases[-1] != phase):
+                        observed_phases.append(phase)
                 if state and state.get("ready") and not queued:
                     if state.get("club_name") != "Arsenal":
                         raise AssertionError(f"wrong club: {state}")
@@ -122,7 +137,8 @@ def test(program, game, root):
     if not queued or not applied or not completed or not confirmed_stable:
         raise AssertionError(
             f"native match incomplete: queued={queued} applied={applied} "
-            f"completed={completed} stable={confirmed_stable}\n" + log[-5000:])
+            f"completed={completed} stable={confirmed_stable} "
+            f"dates={observed_dates} phases={observed_phases}\n" + log[-5000:])
     if "owner-game: manager takes the next match" not in log:
         raise AssertionError("no native CM holiday delegation start")
     if log.count("owner-game: delegated match complete; control returned") != 1:
