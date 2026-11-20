@@ -30,7 +30,9 @@ MAX_SECONDS = 240
 MAX_SETUP_SECONDS = 165
 FIRST_CLICK_MS = 12000
 SECOND_CLICK_MS = 29000
-QUIT_MS = 53000
+THIRD_CLICK_MS = 46000
+FOURTH_CLICK_MS = 63000
+QUIT_MS = 83000
 
 
 def read_json(path: Path):
@@ -43,11 +45,16 @@ def read_json(path: Path):
 def steps_for_arsenal(user: Path) -> list[str]:
     steps = [step for step in smoke_run.STEPS if " dump " not in step]
     steps = steps[:steps.index("wait first-news") + 1]
-    # The pauses allow this test to write commands while CM is waiting for
-    # the human manager's Next/Continue click. No manipulation of game memory.
+    # A command is consumed only AFTER a real native human turn, not when
+    # its file is written. The earlier two-click script accepted the arm but
+    # quit before the queued cancellation could reach another safe point.
+    # Keep two further genuine Continue actions so both commands are applied
+    # by CM, with no manipulation of game memory or fabricated responses.
     return steps + [
         f"{FIRST_CLICK_MS} click 45 115",
         f"{SECOND_CLICK_MS} click 45 115",
+        f"{THIRD_CLICK_MS} click 45 115",
+        f"{FOURTH_CLICK_MS} click 45 115",
         f"{QUIT_MS} quit",
     ]
 
@@ -81,6 +88,7 @@ def run_case(program: str, game: str, work: Path) -> None:
     sent_arm = False
     sent_cancel = False
     first_result = None
+    final_result = None
 
     with log_path.open("wb") as logfile:
         proc = subprocess.Popen(
@@ -131,6 +139,14 @@ def run_case(program: str, game: str, work: Path) -> None:
                               flush=True)
                     elif result.get("status") == "rejected":
                         raise AssertionError(f"Native game rejected delegate: {result}")
+                if sent_cancel and isinstance(result, dict) and (
+                    result.get("message") == "delegation cancelled before kick-off"
+                ):
+                    if result.get("status") != "applied":
+                        raise AssertionError(f"Cancel was not applied: {result}")
+                    final_result = result
+                    if command_path.exists():
+                        raise AssertionError("Cancel command was not consumed")
                 time.sleep(0.15)
             code = proc.returncode
         finally:
@@ -146,9 +162,10 @@ def run_case(program: str, game: str, work: Path) -> None:
         raise AssertionError(
             f"Native game exit {code}\n{log[-4000:]}"
         )
-    if not sent_arm or not sent_cancel or not first_result:
+    if not sent_arm or not sent_cancel or not first_result or not final_result:
         raise AssertionError(
-            f"Native request not completed: arm={sent_arm}, cancel={sent_cancel}\n"
+            f"Native request not completed: arm={sent_arm}, cancel={sent_cancel}, "
+            f"cancel_applied={bool(final_result)}\n"
             + log[-4000:]
         )
     if f"owner-game: delegate_match club={club} result=1" not in log:
@@ -157,7 +174,7 @@ def run_case(program: str, game: str, work: Path) -> None:
         raise AssertionError(
             "No native successful cancellation evidence\n" + log[-4000:]
         )
-    final = read_json(result_path)
+    final = final_result
     if not isinstance(final, dict) or final.get("status") != "applied" or (
         final.get("message") != "delegation cancelled before kick-off"
     ):
