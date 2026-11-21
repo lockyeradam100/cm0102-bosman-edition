@@ -71,6 +71,9 @@ def test(program, game, root):
     end_date = None
     observed_dates = []
     observed_phases = []
+    last_progress = time.monotonic()
+    last_date = None
+    last_phase = None
     with log_path.open("wb") as log:
         proc = subprocess.Popen([program, "--game", game, "-seed", "1"],
                                 env=env, stdout=subprocess.DEVNULL, stderr=log)
@@ -84,8 +87,12 @@ def test(program, game, root):
                     phase = state.get("delegation_status")
                     if date and (not observed_dates or observed_dates[-1] != date):
                         observed_dates.append(date)
+                        last_progress = time.monotonic()
+                        last_date = date
                     if phase is not None and (not observed_phases or observed_phases[-1] != phase):
                         observed_phases.append(phase)
+                        last_progress = time.monotonic()
+                        last_phase = phase
                 if state and state.get("ready") and not queued:
                     if state.get("club_name") != "Arsenal":
                         raise AssertionError(f"wrong club: {state}")
@@ -124,6 +131,15 @@ def test(program, game, root):
                         break
                 elif completed:
                     raise AssertionError("completed fixture readback disappeared before stable human return")
+                # A game stuck at a native confirmation or news decision must
+                # fail with useful evidence rather than being misreported as
+                # a successful delegated match. Do not mutate the football
+                # save, fixture or match result to force progress.
+                if applied and not completed and time.monotonic() - last_progress > 85:
+                    raise AssertionError(
+                        f"native match stalled: date={last_date} phase={last_phase} "
+                        f"dates={observed_dates} phases={observed_phases}"
+                    )
                 time.sleep(0.2)
         finally:
             if proc.poll() is None:

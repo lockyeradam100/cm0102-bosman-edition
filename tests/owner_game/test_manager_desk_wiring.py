@@ -87,8 +87,10 @@ assert 'delegated_match_completed' in ui
 # The full-match Mac gate must actually advance native CM turns and expose
 # dates/phases on failure, not simply wait for a completion flag to appear.
 match_gate = (root / "tests/owner_game/delegated_match_native.py").read_text()
-assert 'steps.append(f"{ms} click 45 115")' in match_gate
-assert 'steps.append(f"{ms + 2000} char 32 0")' in match_gate
+assert 'steps.append(f"{ms} press space")' in match_gate
+assert 'steps.append(f"{ms + 2000} click 45 115")' in match_gate
+assert 'native match stalled:' in match_gate
+assert 'last_progress = time.monotonic()' in match_gate
 assert 'dates={observed_dates} phases={observed_phases}' in match_gate
 assert 'state.get("delegated_match_completed") is True' in match_gate
 assert 'confirmed_stable = True' in match_gate
