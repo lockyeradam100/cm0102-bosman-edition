@@ -59,6 +59,16 @@ The club inbox must distinguish **Needs your decision / For your information / H
 
 **Acceptance tests:** in isolated careers repeat the same inbound bid under owner-manager, manager-led, sporting-director/head-coach, technical/recruitment split and fully autonomous setups. Confirm correct recipient and authority, real negotiator action and player effects, valid budget/posting/instalments, exceptional and rejected routes, staff vacancies, expiry/no response, absence of forced owner interaction, save/reload and no double transaction. This is part of the integrated P2/P4 football-governance implementation, **not a reason to delay the playable 24 November Holiday Edition**.
 
+### Squad numbers, registration and other routine manager duties — 4 August 2001 test
+
+**Owner-only play must not stop for squad-number assignment.** This is a football-department decision, owned by the employed manager/head coach for football selections and administered by the club secretary/team administrator or permitted staff member for competition registration. Squad-number assignment, registration submissions, routine selection, training and similar football administration should progress without requiring a human chairman's response. The owner may choose to observe, advise or manually take responsibility but that is opt-in.
+
+For the Arsenal 2001 test case, the current CM game displayed “Arsenal squad numbers to be decided” on 4 August while one-match delegation was armed. This is **an observed user-facing interruption**, not evidence that the delegated match itself failed. A one-match holiday/delegation command is not equivalent to persistent owner-only football-department autonomy.
+
+**Rules:** route the incoming task to the role with permission under the club authority charter; if multiple roles exist, the manager/head coach decides shirt assignments while registration is submitted by an authorised administrator, with consultation where needed. The manager remains accountable for eligibility and squad composition. Do not escalate ordinary shirt numbers to the owner. If a task is impossible, noncompliant, or cannot be completed by appointed staff, generate a clear *exception alert* with deadline and supported fallback; avoid indefinite blocked advancement. Record the outcome, responsible person, and any unmet competition requirements, and preserve across save/reload.
+
+**Acceptance:** with a manager employed and routine football delegated, progress an Arsenal career through 4 August 2001 without forcing the owner to pick numbers; verify credible numbers, registration legality, day advancement and native football parity. Repeat under owner-manager/manual mode, missing manager/administrator, and conflicting registration restrictions. Never silently bypass mandatory registration.
+
 ## 3. Primary game loops
 **Acquire → Govern → Observe → Decide → Delegate → Advance → Respond → Review → Reinvest / Exit.**
 - Start with an owner identity, starting liquidity and portfolio (or a configured inherited/consortium ownership scenario), select a historical season and buy or take control of a club.
