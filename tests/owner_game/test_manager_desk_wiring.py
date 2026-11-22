@@ -49,7 +49,9 @@ assert 'delegation_status == 2 ? "Manager handling fixture"' in ui
 assert 'chosen == 1 && delegation_status != 0' in ui
 assert 'chosen == 2 && delegation_status != 1' in ui
 assert '"Cancel Delegation"' in ui
-assert "if (match <= today + 1) delegate_start(slot, manager);" in native
+assert "#define DELEGATION_PREP_DAYS 3" in native
+assert "if (match <= today + DELEGATION_PREP_DAYS) delegate_start(slot, manager);" in native
+assert "if (fixture_serial(fixture) <= today + DELEGATION_PREP_DAYS)" in native
 assert "set_holiday(manager, 1);" in native
 assert "delegate_restore_and_clear(" in native
 # Sidebar and command-file cancellation must share one identity-checked transition.
@@ -113,6 +115,7 @@ assert 'steps.append(f"{ms} press space")' in match_gate
 # earlier blind click loops. They must still advance real UI days and stop
 # rather than falsely report a match when blocked.
 assert '"wait news"' in match_gate
+assert '"wait day:16.7.01"' in match_gate
 assert '"wait day:18.7.01"' in match_gate
 assert '"wait continue"' in match_gate
 assert '"wait screen:0x8e9760"' in match_gate

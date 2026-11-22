@@ -2,8 +2,7 @@
  * day before the next match of the player's club.
  *
  * Owner Game also uses the same native holiday path for a one-match delegation. "Let Manager Handle
- * Next Match" arms the next first-team fixture without taking control away immediately. On the final
- * human turn before that fixture, CM's real holiday flag is enabled and holiday settings 2/3 are
+ * Next Match" arms the next first-team fixture without taking control away immediately. On a human turn several days before that fixture, CM's real holiday flag is enabled and holiday settings 2/3 are
  * temporarily disabled so CM picks the tactic and team. Once CM records the result, the holiday flag
  * and the two settings are restored. CM's own match engine remains the only match simulation.
  *
@@ -55,6 +54,10 @@ extern const uint32_t rt_site_holiday_item;
 #define NEXT_MATCH_ID 0x4b7         /* Holiday until next match; the original uses no such id */
 #define DELEGATE_MATCH_ID 0x4b9     /* Owner Game: separate from Bosman Options ITEM_ID 0x4b8 */
 #define SEARCH_DAYS 60
+/* Turn on the native manager several game days before a scheduled fixture.
+ * A match-day-only toggle may arrive after CM's selection preparation.
+ * This temporary short handover must be proved in the native fixture gate. */
+#define DELEGATION_PREP_DAYS 3
 
 static uint32_t item_args[18];
 static uint32_t item_display;
@@ -245,7 +248,7 @@ static int delegate_arm(uint32_t manager)
     int today = serial((int16_t)rd16(g_mem, GAME_DAY), (int16_t)rd16(g_mem, GAME_DAY + 2));
     fprintf(stderr, "owner-game: delegated next match armed for human %d, today %d, match %d, fixture %u\n",
             slot, today, match, fixture);
-    if (match <= today + 1) delegate_start(slot, manager);
+    if (match <= today + DELEGATION_PREP_DAYS) delegate_start(slot, manager);
     return 1;
 }
 
@@ -450,7 +453,7 @@ void holiday_next_turn(void)
     int slot = human_slot(manager);
 
     /* Owner Game one-match delegation runs first. While armed but not yet on holiday, normal human turns
-     * continue. The day before the target fixture, native holiday is switched on. After CM writes the
+     * continue. Several days before the target fixture, native holiday is switched on. After CM writes the
      * result byte, native holiday is switched off before the next screen is built. */
     if (slot >= 0 && delegated_fixture[slot]) {
         if (!delegate_context_matches(slot, manager)) {
@@ -482,7 +485,11 @@ void holiday_next_turn(void)
                 }
             } else {
                 int today = serial((int16_t)rd16(g_mem, GAME_DAY), (int16_t)rd16(g_mem, GAME_DAY + 2));
-                if (fixture_serial(fixture) <= today + 1) delegate_start(slot, manager);
+                if (fixture_serial(fixture) <= today + DELEGATION_PREP_DAYS) {
+                    fprintf(stderr, "owner-game: native delegation preflight at day %d for fixture day %d\n",
+                            today, fixture_serial(fixture));
+                    delegate_start(slot, manager);
+                }
             }
         }
     }

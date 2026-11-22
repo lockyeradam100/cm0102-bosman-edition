@@ -52,9 +52,12 @@ def test(program, game, root):
     # Space/click loop could never answer the Respond/Reject/Yes dialogue.
     # Do not alter the bid, fixture, game clock or match outcome in memory.
     steps += [
-        "1500 press space",
-        "3500 press space",
-        "5000 click 172 230",            # Respond to Henry bid
+        # A *fresh* career opens on 14 July, unlike the older smoke test's
+        # prematch save. Explicitly continue it to the bid; don't click
+        # Respond while still on the first news screen on 14 July.
+        "1500 click 45 155",            # Continue Game from first news
+        "wait day:16.7.01",
+        "500 click 172 230",            # Respond to real Henry bid
         "wait screen:0x8e9760",
         "1000 click 502 573",            # Reject (native CM action)
         "wait screen:0x8efda0",
@@ -66,7 +69,7 @@ def test(program, game, root):
         "1500 move 400 30",
         "wait continue",
         "500 press space",
-        # On the day before the fixture, the armed native delegation
+        # Several days before the fixture, the armed native delegation
         # should enter CM holiday. Never press Kick Off manually here:
         # the manager must run the genuine CM simulation.
     ]
