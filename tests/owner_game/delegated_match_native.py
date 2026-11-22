@@ -45,12 +45,35 @@ def test(program, game, root):
     # the native Space-to-Continue shortcut (the same tested input form as
     # smoke_run.MATCH_STEPS), allowing queued dialogue to finish.
     # This is UI input, never a fabricated fixture result or a memory edit.
-    for ms in (12000, 24000, 36000, 48000, 60000, 72000, 84000,
-               96000, 108000, 120000, 132000, 144000, 156000,
-               168000, 180000, 192000, 204000):
+    # The 2001 Arsenal seed reaches the Henry transfer bid on 16 July.
+    # It is a real blocking native news decision, not a stalled simulation.
+    # Answer it using the established CM smoke-match controls before
+    # waiting for the one-match holiday to take over. The previous blind
+    # Space/click loop could never answer the Respond/Reject/Yes dialogue.
+    # Do not alter the bid, fixture, game clock or match outcome in memory.
+    steps += [
+        "1500 press space",
+        "3500 press space",
+        "5000 click 172 230",            # Respond to Henry bid
+        "wait screen:0x8e9760",
+        "1000 click 502 573",            # Reject (native CM action)
+        "wait screen:0x8efda0",
+        "1000 click 705 573",            # Confirm rejection
+        "wait news",
+        "500 press space",
+        "wait day:18.7.01",
+        "500 press space",
+        "1500 move 400 30",
+        "wait continue",
+        "500 press space",
+        # On the day before the fixture, the armed native delegation
+        # should enter CM holiday. Never press Kick Off manually here:
+        # the manager must run the genuine CM simulation.
+    ]
+    for ms in (12000, 24000, 36000, 48000, 60000, 72000,
+               84000, 96000, 108000, 120000, 132000, 144000):
         steps.append(f"{ms} press space")
-        steps.append(f"{ms + 2000} click 45 115")
-    steps += ["228000 quit"]
+    steps += ["180000 quit"]
     env = dict(os.environ, HOME=str(root / "home"),
                SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
                RECOMP_NO_BOX="1", RECOMP_USER_DIR=str(user),
