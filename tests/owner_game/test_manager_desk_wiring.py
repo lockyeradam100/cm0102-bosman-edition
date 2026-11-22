@@ -109,7 +109,14 @@ assert 'delegated_match_completed' in ui
 # dates/phases on failure, not simply wait for a completion flag to appear.
 match_gate = (root / "tests/owner_game/delegated_match_native.py").read_text()
 assert 'steps.append(f"{ms} press space")' in match_gate
-assert 'steps.append(f"{ms + 2000} click 45 115")' in match_gate
+# The script's explicit native news/transfer screens are allowed to replace
+# earlier blind click loops. They must still advance real UI days and stop
+# rather than falsely report a match when blocked.
+assert '"wait news"' in match_gate
+assert '"wait day:18.7.01"' in match_gate
+assert '"wait continue"' in match_gate
+assert '"wait screen:0x8e9760"' in match_gate
+assert '"wait screen:0x8efda0"' in match_gate
 assert 'native match stalled:' in match_gate
 assert 'last_progress = time.monotonic()' in match_gate
 assert 'dates={observed_dates} phases={observed_phases}' in match_gate
