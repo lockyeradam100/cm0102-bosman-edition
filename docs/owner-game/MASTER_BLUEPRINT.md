@@ -31,6 +31,34 @@ Signature experience: start around **1980**, acquire or control a football club,
 
 Delegation modes for each operational function: **Manual / Advise / Delegated / Autonomous within guardrails**. Display exactly what the delegate will do and when escalation is required. Discretion and responsibility differ by role, trust, contract and owner style.
 
+### Transfer-decision authority — Bergkamp/Juventus test case (22 November 2026)
+
+Owner Game must not automatically route every offer to the human manager. **The club's actual organisation and its owner-approved authority charter decide who sees, evaluates, negotiates, approves, rejects and records it.** The user's chosen role is distinct from the jobs of hired employees. A title does not grant unlimited authority: permissions and money limits are adjustable per club and individual.
+
+A single transfer comprises separately assigned rights and obligations:
+1. **Receive and triage** the incoming offer; determine if it is routine, sensitive or time-limited.
+2. **Assess football impact** with manager/head coach; consult recruitment/sporting/technical staff for replacement options and opportunity cost.
+3. **Negotiate transfer terms** (fee, timing, instalments, add-ons, sell-ons, player exchanges, release clauses and bidding-club restrictions) by an authorised negotiator.
+4. **Assess player position** (willingness, promise, contract and agent influence), plus the impact of consent and registration rules.
+5. **Approve or veto** according to owner-set financial limits, key-player or youth-prospect protection, manager veto rights, board/credit conditions and required owner sign-off.
+6. **Execute and report** via the real CM/native football transaction, with the actual club accounts, squad, fixtures and budgets updated once, and an attributable decision history.
+
+Supported structure patterns, which the user may mix rather than selecting a fixed game mode:
+- **Owner-manager:** player may directly handle any stage or hand negotiations to staff.
+- **Traditional manager:** manager selects targets and leads routine football decisions; owner sets transfer/wage limits and protected-player approvals.
+- **Sporting director + head coach:** sporting director runs deals and recruitment strategy; head coach identifies squad needs and advises on any loss of a starter; owner handles exceptions as contracted.
+- **Technical director + head of recruitment:** specialist recruitment produces options, technical director balances sporting plans, a separately authorised negotiator handles the deal, head coach advises.
+- **Fully delegated football department:** the game continues without compulsory owner clicks for routine bids; only decisions outside the charter appear as approval requests.
+- **Vacancy or poor staff capability:** authority falls back to the next permitted role or owner, with a visible alert rather than losing an offer or having a non-existent employee act.
+
+For every decision category configure **Manual / Advise / Delegated / Autonomous within guardrails**, with transfer-specific limits: incoming versus outgoing, player type (senior/key player/academy), minimum acceptable fee, maximum purchase cost, net transfer spend, wages, future instalment exposure, contract length, manager consent and owner/board exceptions. Set who is *informed*, who may *negotiate*, who must *approve*, and whether a delegate may walk away. Escalation for conflicts or exceptional terms must not be triggered by every routine offer. Staff personality, ability, strategy and relationships affect the quality and speed of recommendations and negotiations; staff never invent approval rights.
+
+**Example:** Juventus offers £5m for Dennis Bergkamp. An owner-manager could personally reject. Under a director/head-coach structure, the sporting director might advocate selling at that price while the head coach argues that Bergkamp is essential; the recruitment lead could propose a replacement. The owner sees the recommendation *only if* the charter requires an approval, protected-player exception or conflict resolution. An owner intervention can upset the head coach or director, just as accepting a poor deal can harm the club. Neither path automatically guarantees a positive outcome.
+
+The club inbox must distinguish **Needs your decision / For your information / Handled under your instructions**. When a bid arrives, no relevant human-controlled screen is forced on someone whose authority has been delegated; a staff decision proceeds through the native football engine. An unresolved required approval may pause or expire at the right point, but not indefinitely block the season.
+
+**Acceptance tests:** in isolated careers repeat the same inbound bid under owner-manager, manager-led, sporting-director/head-coach, technical/recruitment split and fully autonomous setups. Confirm correct recipient and authority, real negotiator action and player effects, valid budget/posting/instalments, exceptional and rejected routes, staff vacancies, expiry/no response, absence of forced owner interaction, save/reload and no double transaction. This is part of the integrated P2/P4 football-governance implementation, **not a reason to delay the playable 24 November Holiday Edition**.
+
 ## 3. Primary game loops
 **Acquire → Govern → Observe → Decide → Delegate → Advance → Respond → Review → Reinvest / Exit.**
 - Start with an owner identity, starting liquidity and portfolio (or a configured inherited/consortium ownership scenario), select a historical season and buy or take control of a club.
