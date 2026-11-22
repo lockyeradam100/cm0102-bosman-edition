@@ -65,6 +65,27 @@ assert "args[13] = slot >= 0 && delegate_context_matches(slot, manager) ? cancel
     "sidebar label must follow authenticated active manager/club, not stale slot state"
 )
 assert "No valid delegation for the current club and manager." in sidebar
+# The physical Mac test (22 Nov 2026) caught a click-routing bug:
+# Bosman Edition Options and Cancel Manager Match Delegation shared 0x4b8.
+# The native main-loop options hook runs before the holiday sidebar input.
+# Keep their widget ids distinct, or clicking cancel opens Options instead.
+options_screen = (root / "src/recomp_rt/win/options_screen.c").read_text()
+def widget_id(source, name):
+    for line in source.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[:2] == ["#define", name]:
+            return int(parts[2].removesuffix("u"), 16)
+    raise AssertionError(f"missing widget ID {name}")
+bosman_options_id = widget_id(options_screen, "ITEM_ID")
+delegate_id = widget_id(native, "DELEGATE_MATCH_ID")
+legacy_next_id = widget_id(native, "NEXT_MATCH_ID")
+assert len({bosman_options_id, delegate_id, legacy_next_id}) == 3, (
+    f"Sidebar ID collision: options={bosman_options_id:#x}, "
+    f"delegation={delegate_id:#x}, old holiday={legacy_next_id:#x}"
+)
+assert 'if (id == DELEGATE_MATCH_ID)' in native
+assert 'if (rd16(g_mem, display_of_poll + WIDGETS + 8 + widget * WIDGET_SIZE) != ITEM_ID)' in options_screen
+
 assert "o_007615d0();" in native, "native sidebar behavior must remain"
 assert "owner_game_delegate_next_from_safe_point" not in ui
 assert "rt_callback(" not in ui[ui.index("static void owner_game_manager_desk"):ui.index("static void owner_game_overview")], "SDL input must not mutate native game"

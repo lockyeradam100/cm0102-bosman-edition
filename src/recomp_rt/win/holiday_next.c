@@ -53,7 +53,7 @@ extern const uint32_t rt_site_holiday_item;
 
 #define HOLIDAY_ID 0x3ef            /* Go on Holiday */
 #define NEXT_MATCH_ID 0x4b7         /* Holiday until next match; the original uses no such id */
-#define DELEGATE_MATCH_ID 0x4b8     /* Owner Game: manager handles exactly the next first-team match */
+#define DELEGATE_MATCH_ID 0x4b9     /* Owner Game: separate from Bosman Options ITEM_ID 0x4b8 */
 #define SEARCH_DAYS 60
 
 static uint32_t item_args[18];
