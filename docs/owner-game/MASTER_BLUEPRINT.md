@@ -79,6 +79,28 @@ For the Arsenal 2001 test case, the current CM game displayed “Arsenal squad n
 - Rival owners, clubs, managers, agents, players, communities, regulators and sponsors also act while the player's club advances.
 - Careers persist after resignations, relegation, takeovers, bankruptcy, changing clubs and historical decades.
 
+### Owner presence and matchday choices — 22 November 2026 user Mac test
+
+**Non-negotiable player experience:** the owner presses the ordinary `Continue Game` button. The game must not automatically appoint the owner as match manager, require a starting XI or force a match view. The appointed manager/head coach remains responsible for selection, tactics, preparation, substitutions and the native CM match result. Owner attendance is a *separate* decision from football management and from whether the owner receives a match summary. A hands-on owner may explicitly choose to manage a match only where their authority/role permits.
+
+**Owner-defined standing attendance policy** (allow combinations and exceptions):
+- Attend every match (home and away), all home, all away, or no matches by default.
+- Attend European fixtures; domestic cup fixtures; finals; significant matches such as derbies, title/relegation deciders or matches against named rivals. Categories overlap and must have transparent, user-editable definitions, not hard-coded prestige labels.
+- Bespoke week-by-week/calendar selections: attend particular fixtures, skip particular fixtures or override a default rule at any point before kick-off.
+- **Ask before every match** is an explicit preference. Optionally ask only for *uncovered* fixtures, or for matches matching a chosen rule, rather than asking redundantly when a standing rule already makes the choice.
+- An optional `Attend with/without match viewer` choice supports attending in a spectator/owner capacity versus watching only the summary. A decision to attend is never permission to change tactics, pick players or coach from the touchline by default.
+
+**Matchday Continue flow:**
+1. `Continue Game` advances normally. Before the match, resolve the owner's saved policy against the fixture's verified home/away, competition, final/knockout stage, named rival, date and individually set calendar exceptions.
+2. If the policy already decides attendance, use it automatically. If the owner has asked to decide, pause once with **Attend / Don't Attend / Set default** (and a small view of fixture/date/importance). Never ask twice for the same fixture.
+3. If attending, offer a realistic owner's spectator experience: match viewer from the directors' box/stands or instant simulation + report. The manager handles the football unchanged. If absent, advance directly to the genuine native football result with an appropriate summary.
+4. Deliver only owner-relevant consequences to the owner inbox: result/league position, manager performance, finances, supporter or board issues, relevant injuries and major incidents. Routine shirt numbers, XI, tactical substitutions, registration and everyday transfer handling go to the appointed authorised staff. An owner's optional hands-on powers are configured via the authority charter, not inferred from attending a match.
+5. Remember attendance and overrides per fixture and across save/reload. A skipped match cannot silently become attended after loading a game. The game records *where* the owner was and what they actually chose, allowing credible travel demands, time and cost and context-sensitive relationship/supporter reactions. Attendance must never award a simplistic score/goals bonus.
+
+**Owner types as preferences, not rigid classes:** ever-present home supporter, travelling fan, European-only, cups/finals, big-games-only, distant investor, crisis visitor, bespoke calendar, or entirely custom blends. These affect proposed defaults and how often the game asks, but should not lock out later choices. An owner may be highly active in finances and staff appointments while rarely attending; another may attend every match and delegate all transfers.
+
+**Regression/acceptance paths:** test each standing pattern, combined policies, home/away crossover, Europa/Champions League, cups and finals, bespoke calendar overrides, postponed/rescheduled matches, away travel, save/reload, multiple clubs under one owner, a vacant manager post, and explicit owner-manager mode. Test that every fixture still obtains a genuine CM result without human squad selection when football is delegated. A matchday arrival/attendance prompt must not stall a fully delegated season. The 22 November physical Mac trial proved the native engine produced **Arsenal 3–0 Ipswich on 18 August 2001** after human intervention, but **did not** prove unattended owner-only delegation; the team-selection error is separately recorded as a release blocker.
+
 ## 4. Football minimum-complete contract
 This is an **absolute gate**, not a collection of stretch features.
 
