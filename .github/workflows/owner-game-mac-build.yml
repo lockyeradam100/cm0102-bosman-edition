@@ -216,6 +216,30 @@ jobs:
           test "$(find build-owner-mac/holiday-release -maxdepth 1 \
             \( -name '*.dmg' -o -name '*.zip' \) | wc -l | tr -d ' ')" -eq 1
 
+      - name: Verify final Holiday download contents and extracted application
+        run: |
+          set -eu
+          RELEASE="$GITHUB_WORKSPACE/build-owner-mac/holiday-release"
+          test -s "$RELEASE/READ-ME-FIRST.txt"
+          grep -q 'Cmd-Shift-O' "$RELEASE/READ-ME-FIRST.txt"
+          test "$(find "$RELEASE" -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) | wc -l | tr -d ' ')" -eq 1
+          STAGING="$(mktemp -d)"
+          trap 'rm -rf "$STAGING"' EXIT
+          if [ -f "$RELEASE/Owner-Game-Mac-Complete.zip" ]; then
+            ditto -x -k "$RELEASE/Owner-Game-Mac-Complete.zip" "$STAGING"
+          else
+            hdiutil attach "$RELEASE/Owner-Game-Holiday-Mac.dmg" -nobrowse -readonly -mountpoint "$STAGING/mounted"
+            cp -R "$STAGING/mounted/CM 01-02 Bosman Edition.app" "$STAGING/"
+            hdiutil detach "$STAGING/mounted"
+          fi
+          APP="$STAGING/CM 01-02 Bosman Edition.app"
+          test -f "$APP/Contents/MacOS/cm0102_recomp"
+          test -f "$APP/Contents/Resources/game/cm0102.exe"
+          test -d "$APP/Contents/Resources/game/Data"
+          lipo -archs "$APP/Contents/MacOS/cm0102_recomp" | grep -q arm64
+          lipo -archs "$APP/Contents/MacOS/cm0102_recomp" | grep -q x86_64
+          echo "PASS: one distributable, instructions, complete extracted game data and universal native executable"
+
       - name: Save Mac build
         uses: actions/upload-artifact@v4
         with:
