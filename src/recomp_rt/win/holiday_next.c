@@ -57,7 +57,10 @@ extern const uint32_t rt_site_holiday_item;
 /* Turn on the native manager several game days before a scheduled fixture.
  * A match-day-only toggle may arrive after CM's selection preparation.
  * This temporary short handover must be proved in the native fixture gate. */
-#define DELEGATION_PREP_DAYS 3
+/* Keep an explicit cancellable human turn after arming a fixture three days
+ * away. Native CM takes over at two days remaining; arming must not
+ * immediately lock out a cancellation requested at the next safe point. */
+#define DELEGATION_PREP_DAYS 2
 
 static uint32_t item_args[18];
 static uint32_t item_display;
