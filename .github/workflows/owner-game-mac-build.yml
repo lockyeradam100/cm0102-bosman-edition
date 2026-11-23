@@ -228,6 +228,7 @@ jobs:
           if [ -f "$RELEASE/Owner-Game-Mac-Complete.zip" ]; then
             ditto -x -k "$RELEASE/Owner-Game-Mac-Complete.zip" "$STAGING"
           else
+            mkdir -p "$STAGING/mounted"
             hdiutil attach "$RELEASE/Owner-Game-Holiday-Mac.dmg" -nobrowse -readonly -mountpoint "$STAGING/mounted"
             cp -R "$STAGING/mounted/CM 01-02 Bosman Edition.app" "$STAGING/"
             hdiutil detach "$STAGING/mounted"
