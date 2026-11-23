@@ -31,6 +31,10 @@ guide = release_guide.read_text()
 assert "24 November 2026" in guide
 assert "43899286537" in guide, "last verified Mac fallback must be explicit"
 assert "Application Support/cm0102" in guide, "user save backup guidance absent"
+assert "Assemble playable Owner Game Mac beta" in mac
+assert "name: Owner-Game-Holiday-Playable-Mac" in mac
+assert "Publish playable Mac beta before experimental full-match gate" in mac
+assert mac.index("Publish playable Mac beta before experimental full-match gate") < mac.index("Prove delegated match reaches native result and returns human control")
 assert "Assemble Owner Game Holiday Mac download" in mac
 assert "name: Owner-Game-Holiday-Mac" in mac
 assert "build-owner-mac/holiday-release/*" in mac

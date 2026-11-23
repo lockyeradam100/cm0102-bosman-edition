@@ -153,6 +153,32 @@ jobs:
             "$APP/Contents/MacOS/cm0102_recomp" \
             "$APP/Contents/Resources/game"
 
+      # This is a playable FOOTBALL beta, not certification of autonomous
+      # owner match control. Publish after actual native create/save/reload
+      # and authenticated command checks, BEFORE the experimental full-match
+      # gate. A failure in that gate stays visible as a failed workflow.
+      - name: Assemble playable Owner Game Mac beta
+        run: |
+          set -eu
+          RELEASE="$GITHUB_WORKSPACE/build-owner-mac/holiday-release"
+          mkdir -p "$RELEASE"
+          cp docs/owner-game/HOLIDAY_EDITION_2026-11-24.md "$RELEASE/READ-ME-FIRST.txt"
+          DMG=$(find "$GITHUB_WORKSPACE/build-owner-mac" -maxdepth 1 -type f -name '*.dmg' -print -quit)
+          if [ -n "$DMG" ] && [ -s "$DMG" ]; then
+            cp "$DMG" "$RELEASE/Owner-Game-Holiday-Mac.dmg"
+          else
+            cp "$GITHUB_WORKSPACE/build-owner-mac/Owner-Game-Mac-Complete.zip" "$RELEASE/"
+          fi
+          test "$(find "$RELEASE" -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) | wc -l | tr -d ' ')" -eq 1
+
+      - name: Publish playable Mac beta before experimental full-match gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: Owner-Game-Holiday-Playable-Mac
+          path: build-owner-mac/holiday-release/*
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Prove delegated match reaches native result and returns human control
         run: |
           set -eu

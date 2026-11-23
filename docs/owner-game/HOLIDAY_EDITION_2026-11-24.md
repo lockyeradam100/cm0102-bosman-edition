@@ -1,7 +1,10 @@
 # Owner Game — Holiday Edition (Mac)
 ## Playable-first release gate | 24 November 2026
 
-**Status 18 November:** release candidate under Mac integration testing. This is a
+**Status 23 November:** release beta on native Mac; full matchday delegation is
+experimental and not yet verified. The native app has passed real Arsenal
+create/save/reload checks, but an owner-only match is not yet certified.
+This is a
 *playable CM01/02 + Owner Game prototype*, not the completed football ownership
 sandbox described in the long-term programme plan.
 
@@ -41,24 +44,62 @@ checkpoint. Preserve the latest passing package even if a newer experiment fails
 or deliver the last known-good binary; the user must have a playable Mac game
 for the holiday. The broader owner-game P1–P8 roadmap remains intact.
 
+### Play in the morning — a football-first owner challenge
+
+The newer builds may appear as **Owner-Game-Holiday-Playable-Mac** in GitHub
+Actions even if the overall workflow has a red failure (the experimental
+full-match automation). The playable beta is published only after native
+build, create/save/reload, and manager-command checks pass. The **overall
+red workflow is a warning that owner-only delegation is NOT certified**.
+Check the actual artifact and README before installing.
+
+**Safest installation:** keep your previous working application and Arsenal
+save. Create a new Desktop folder such as `Owner Game Holiday Test`; place
+the extracted application inside it. Do **not** drag over the existing
+Applications copy. The two applications may still use the SAME CM save
+folder, so back up `~/Library/Application Support/cm0102` first and save
+your new career under a **different save name**.
+
+**Football-first play path:** start a new 2001/02 club career, press
+`Continue Game` for normal days, use CM's *original Go on Holiday*
+(available from the green menu under the manager's name) when you want the
+existing AI to handle squad selection, routine duties and games, and use
+CM's own *Return from holiday* control when you want to interact again.
+This native holiday path is **not the same feature** as Owner Game
+`Delegate Next Match`; do not assume the experimental one-match feature
+works or survives a save/reload. If a transfer bid or squad-number request
+stops progression, deal with it in the native CM interface or continue
+using the original holiday feature. Save periodically with a distinct
+filename. The owner overview `Cmd-Shift-O` displays the linked club
+identity, date and real club balance. Its finance injection is a sandbox
+test — avoid it in your long career.
+
+**For now, this is a playable football game with an early ownership
+interface**, not a fully developed chairman career. Owner-only hiring,
+manager employment, personal fortune, match attendance choices, owner
+interviews and the 1980 start are still to be built.
+
 ### Download and install
 1. Open the successful Owner Game **Mac Build** run in GitHub Actions.
-2. Find **Artifacts** at the bottom of that run and download
-   **Owner-Game-Holiday-Mac** (or **Owner-Game-Bosman-Mac** for the fallback).
+2. Find **Artifacts** at the bottom of the run and download
+   **Owner-Game-Holiday-Playable-Mac** for the latest beta, or
+   **Owner-Game-Holiday-Mac** after a fully passing run
+   (**Owner-Game-Bosman-Mac** for the known-good fallback).
    GitHub may require signing in. Extract the GitHub artifact ZIP first.
-3. Open the included **.dmg**, then drag
-   **CM 01-02 Bosman Edition.app** to your Applications folder.
-   If the candidate provides an app ZIP instead, unzip and move the complete
-   application to Applications. Do not copy the binary by itself.
+3. Open the included **.dmg** and copy **CM 01-02 Bosman Edition.app**
+   to a new Desktop test folder; do not overwrite your existing installation.
+   If the candidate provides an app ZIP instead, unzip the complete application
+   into your new test folder. Do not copy the binary by itself.
 4. Before replacing an existing application, close the running game.
    **Back up your save folder**:
-   `~/Library/Application Support/cm0102`. It is separate from the app.
+   `~/Library/Application Support/cm0102`. It is separate from the app, but
+   both installs can use that same save folder.
    Keep your previous working Mac app until the replacement is tested.
 5. Open the application. If macOS blocks the unsigned/ad-hoc signed hobby
    build, check **System Settings > Privacy & Security > Open Anyway**
    after attempting to open it; confirm only if you trust this build.
-6. Start a **new test career** first. Verify the club and game date, save,
-   quit, reopen and reload. Only then continue a cherished career.
+6. Start a **new test career** first with a unique save name. Verify the club
+   and game date, save, quit, reopen and reload. Only then continue a cherished career.
 
 ### Owner Game controls and what they really do
 - **Cmd + Shift + O**: open Owner Game overview on Mac; **Fn + F12** also
