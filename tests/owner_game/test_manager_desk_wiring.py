@@ -49,7 +49,10 @@ assert 'delegation_status == 2 ? "Manager handling fixture"' in ui
 assert 'chosen == 1 && delegation_status != 0' in ui
 assert 'chosen == 2 && delegation_status != 1' in ui
 assert '"Cancel Delegation"' in ui
-assert "#define DELEGATION_PREP_DAYS 3" in native
+# Seeded Arsenal fixture is three days from the first human turn.
+# Leave a cancellable turn before CM takes over two days ahead of kickoff.
+assert "#define DELEGATION_PREP_DAYS 2" in native
+assert "if (delegated_started[slot]) return -2;" in native
 assert "if (match <= today + DELEGATION_PREP_DAYS) delegate_start(slot, manager);" in native
 assert "if (fixture_serial(fixture) <= today + DELEGATION_PREP_DAYS)" in native
 assert "set_holiday(manager, 1);" in native
