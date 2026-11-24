@@ -510,7 +510,9 @@ static void owner_game_manager_desk(const char *state, const char *club,
 {
     char manager[96] = "", controller[96] = "", message[1000];
     char command_path[1200];
-    int delegation_status = 0;
+    int delegation_status = 0, week_status = 0;
+    const char *week_at = strstr(state, "\"manager_week_status\": ");
+    if (week_at) sscanf(week_at, "\"manager_week_status\": %d", &week_status);
     int completed_native_match = strstr(state, "\"delegated_match_completed\": true") != NULL;
     const char *phase = strstr(state, "\"delegation_status\": ");
     if (phase) sscanf(phase, "\"delegation_status\": %d", &delegation_status);
@@ -521,29 +523,39 @@ static void owner_game_manager_desk(const char *state, const char *club,
     snprintf(message, sizeof message,
         "CLUB: %s\nDATE: %s\nNATIVE CLUB MANAGER: %s\nCM CONTROLLER: %s\n\n"
         "MATCHDAY CONTROL\n"
-        "Delegate the next first-team fixture using CM's existing holiday "
-        "and assistant-manager engine. CM calculates the actual result; "
-        "your game returns to normal control afterwards.\n\n"
+        "Manager runs 7 days: CM's native holiday AI handles football, "
+        "including decisions allowed by your current holiday settings. "
+        "Return early using CM's Return from holiday. Do not save mid-week.\n\n"
+        "Manager week: %s\n"
+        "One-match delegation is experimental.\n"
         "Native delegation: %s\n"
         "Last delegated match this session: %s\n\n"
         "Manager hiring, poaching, contract compensation and dismissal "
         "are not yet enabled.",
         club, date, manager[0] ? manager : "Not recorded",
         controller[0] ? controller : "Not recorded",
+        week_status == 1 ? "Active" : week_status == 2 ? "Completed - review your club" : "Inactive",
         delegation_status == 2 ? "Manager handling fixture" :
         delegation_status == 1 ? "Armed for next fixture" : "Not armed",
         completed_native_match ? "CM result recorded; human control restored" : "Not yet verified");
     const SDL_MessageBoxButtonData buttons[] = {
-        {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Delegate Next Match"},
+        {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 3, "Manager runs 7 days"},
+        {0, 1, "Delegate Next Match (test)"},
         {0, 2, "Cancel Delegation"},
         {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Close"}
     };
     SDL_MessageBoxData box = {
         SDL_MESSAGEBOX_INFORMATION, window, "Owner Game - Manager Desk",
-        message, 3, buttons, NULL
+        message, 4, buttons, NULL
     };
     int chosen = 0;
-    if (SDL_ShowMessageBox(&box, &chosen) != 0 || (chosen != 1 && chosen != 2)) return;
+    if (SDL_ShowMessageBox(&box, &chosen) != 0 || (chosen != 1 && chosen != 2 && chosen != 3)) return;
+    if ((chosen == 3 && (week_status == 1 || delegation_status != 0)) ||
+        (chosen == 1 && week_status == 1)) {
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Manager Desk",
+            "Another manager delegation is active. Finish or cancel it first.", window);
+        return;
+    }
     if ((chosen == 1 && delegation_status != 0) ||
         (chosen == 2 && delegation_status != 1)) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Manager Desk",
@@ -576,6 +588,7 @@ static void owner_game_manager_desk(const char *state, const char *club,
         return;
     }
     int wrote = fprintf(fp, "%s %s %d\n",
+                        chosen == 3 ? "delegate_week" :
                         chosen == 1 ? "delegate_match" : "cancel_delegation",
                         session, club_id);
     int closed = fclose(fp);
@@ -586,9 +599,12 @@ static void owner_game_manager_desk(const char *state, const char *club,
         return;
     }
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Manager Desk",
+        chosen == 3 ?
+        "Manager week requested. Continue Game to apply. CM's native AI runs football "
+        "for seven game days; use Return from holiday to intervene early." :
         chosen == 1 ?
-        "Delegation requested. Click Continue Game to arm it in CM. "
-        "The game will simulate your next match and return control." :
+        "Experimental delegation requested. Continue Game to arm it. "
+        "Automatic team selection and return are not yet certified." :
         "Cancellation requested. Click Continue Game to apply it. "
         "Cancellation is only possible before CM takes over the fixture.",
         window);

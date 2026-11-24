@@ -97,3 +97,5 @@ These are a **test plan**, not claims that all tests have passed.
 **Do not keep stacking live JSON controls on the bridge.** Extract proper ownership/world/ledger domains, save linkage and a typed interface. The Bosman adapter is justified only as long as it can pass safe native action + save/reload proofs for contracts, management and matchdays. Schedule an explicit re-evaluation after P1/P2 if those proofs fail; then assess a separate native game core or replacement football kernel with cost/rights implications.
 
 **Critical distinction:** this audit is a product/architecture assessment from current source and one successful user-observed Mac integration, **not** a broad end-to-end gameplay certification.
+
+- **24 November candidate:** bounded manager week uses the existing native holiday setter at the authenticated human-turn boundary; no new finance or football model. Deadline and identity are runtime-only. Native Mac integration and persistence remain outstanding.

@@ -179,6 +179,14 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Prove native seven-day manager handover and return
+        run: |
+          set -eu
+          APP="$GITHUB_WORKSPACE/build-owner-mac/CM 01-02 Bosman Edition.app"
+          python3 tests/owner_game/manager_week_native.py \
+            "$APP/Contents/MacOS/cm0102_recomp" \
+            "$APP/Contents/Resources/game"
+
       - name: Prove delegated match reaches native result and returns human control
         run: |
           set -eu

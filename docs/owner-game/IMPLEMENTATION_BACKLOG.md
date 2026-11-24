@@ -89,3 +89,5 @@
 9. Evidence recorded by commit, test command and screenshot/log where appropriate.
 
 Any status change must link to actual test evidence. A feature cannot be marked `DONE` because a GitHub Actions compilation succeeded.
+
+- **24 November holiday candidate, P5:** bounded seven-game-day native manager holiday (explicit owner command, current club/manager identity, early native return, restore temporary selection settings, no invented scores/cash). Runtime only; no mid-week save/reload guarantee. Verify real day advancement and return, isolated career, duplicate/conflicting requests, and manual return. Do not mark P5 complete based on source checks.

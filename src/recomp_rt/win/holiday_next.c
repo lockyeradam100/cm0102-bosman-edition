@@ -67,6 +67,14 @@ static uint32_t item_display;
 static int pending;                 /* the confirm of the new item is open */
 static int marked[16];              /* the holiday of this human ends before the next match */
 
+/* Bounded manager week, separate from fixture-pointer delegation.
+ * Process-only; a saved native holiday can always be ended using CM's
+ * normal Return from holiday control. No extra football or save state. */
+static int week_end[16], week_completed[16];
+static uint32_t week_manager[16], week_club[16];
+static int32_t week_manager_id[16], week_club_id[16];
+static unsigned char week_setting2[16], week_setting3[16];
+
 /* Owner Game one-match delegation. These are deliberately runtime-only. The save remains CM's save and
  * no second football state is introduced. */
 static uint32_t delegated_fixture[16];
@@ -192,6 +200,76 @@ static int delegate_context_matches(int slot, uint32_t manager)
     uint32_t club = club_of(manager);
     return club && (int32_t)rd32(g_mem, manager) == delegated_manager_id[slot] &&
            (int32_t)rd32(g_mem, club) == delegated_club_id[slot];
+}
+
+static int week_matches(int slot, uint32_t manager)
+{
+    uint32_t club = manager ? club_of(manager) : 0;
+    return manager && club && manager == week_manager[slot] &&
+           club == week_club[slot] &&
+           (int32_t)rd32(g_mem, manager) == week_manager_id[slot] &&
+           (int32_t)rd32(g_mem, club) == week_club_id[slot];
+}
+
+static int today_serial(void)
+{
+    return serial((int16_t)rd16(g_mem, GAME_DAY), (int16_t)rd16(g_mem, GAME_DAY + 2));
+}
+
+static void week_finish(int slot, uint32_t manager, int completed)
+{
+    if (week_matches(slot, manager)) {
+        if (completed) {
+            set_holiday(manager, 0);
+            if (rd32(g_mem, record(slot) + ON_HOLIDAY)) return;
+        }
+        set_holiday_setting(manager, 2, week_setting2[slot]);
+        set_holiday_setting(manager, 3, week_setting3[slot]);
+    }
+    week_end[slot] = 0;
+    week_completed[slot] = completed;
+    fprintf(stderr, "owner-game: manager week %s for human %d\n",
+            completed ? "complete; control returned" : "ended early", slot);
+}
+
+int owner_game_week_status(void)
+{
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    if (slot < 0 || !week_matches(slot, manager)) return 0;
+    if (week_end[slot]) return 1;
+    return week_completed[slot] ? 2 : 0;
+}
+
+int owner_game_delegate_week_from_safe_point(void)
+{
+    uint32_t manager = current_manager();
+    int slot = human_slot(manager);
+    if (slot < 0) return -1;
+    uint32_t club = club_of(manager);
+    if (!club) return -1;
+    uint32_t rec = record(slot);
+    if (rd32(g_mem, rec + ON_HOLIDAY) || marked[slot] ||
+        delegate_context_matches(slot, manager)) return -2;
+    if (week_end[slot] && week_matches(slot, manager)) return -2;
+    week_completed[slot] = 0;
+    week_manager[slot] = manager;
+    week_club[slot] = club;
+    week_manager_id[slot] = (int32_t)rd32(g_mem, manager);
+    week_club_id[slot] = (int32_t)rd32(g_mem, club);
+    week_setting2[slot] = g_mem[rec + SETTINGS + 2];
+    week_setting3[slot] = g_mem[rec + SETTINGS + 3];
+    set_holiday_setting(manager, 2, 0);
+    set_holiday_setting(manager, 3, 0);
+    week_end[slot] = today_serial() + 7;
+    set_holiday(manager, 1);
+    if (!rd32(g_mem, rec + ON_HOLIDAY)) {
+        week_finish(slot, manager, 0);
+        return -1;
+    }
+    fprintf(stderr, "owner-game: manager week started for human %d, return day %d\n",
+            slot, week_end[slot]);
+    return 1;
 }
 
 /* Start CM's own holiday just before the delegated fixture. Settings 2 and 3 are the two original
@@ -454,6 +532,18 @@ void holiday_next_turn(void)
 {
     uint32_t manager = current_manager();
     int slot = human_slot(manager);
+
+    /* Return at a native turn boundary, without selecting a fixture or
+     * generating results ourselves. Manual CM return always wins. */
+    if (slot >= 0 && week_end[slot]) {
+        if (!week_matches(slot, manager)) {
+            week_end[slot] = week_completed[slot] = 0;
+        } else if (!rd32(g_mem, record(slot) + ON_HOLIDAY)) {
+            week_finish(slot, manager, 0);
+        } else if (today_serial() >= week_end[slot]) {
+            week_finish(slot, manager, 1);
+        }
+    }
 
     /* Owner Game one-match delegation runs first. While armed but not yet on holiday, normal human turns
      * continue. Several days before the target fixture, native holiday is switched on. After CM writes the

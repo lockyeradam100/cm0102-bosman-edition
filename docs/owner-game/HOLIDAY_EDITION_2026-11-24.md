@@ -115,6 +115,20 @@ interviews and the 1980 start are still to be built.
   shareholder loan: it changes native club funds without deducting from an
   owner bank account. Avoid treating it as a finished financial feature.
 
+### Manager-run week (experimental, 24 November candidate)
+
+In Manager Desk, **Manager runs 7 days** requests a bounded native holiday.
+CM's own AI handles the football and other decisions allowed by its current
+holiday settings; the owner can intervene via CM's Return from holiday.
+At the seven-day boundary the game attempts to restore human control.
+This is not a separately employed manager, not a full owner inbox, and not
+a persistent owner policy. Review native holiday settings before using it.
+Until the native week gate passes, use this only on a disposable career.
+Do not save or reload mid-week: native holiday persists but the new
+seven-day marker does not. You can always use native Return from holiday.
+No money is injected; use the existing club finances and review fixtures,
+results and news when the week ends.
+
 ### Known limitations — not blockers for a holiday football build
 - Hiring, poaching, dismissing or compensating managers **as owner** is not
   complete. The native CM manager market itself continues to exist.

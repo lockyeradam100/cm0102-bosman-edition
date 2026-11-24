@@ -128,3 +128,14 @@ assert 'last_progress = time.monotonic()' in match_gate
 assert 'dates={observed_dates} phases={observed_phases}' in match_gate
 assert 'state.get("delegated_match_completed") is True' in match_gate
 assert 'confirmed_stable = True' in match_gate
+
+# Bounded week runs the native holiday engine rather than a new match simulator.
+assert 'strcmp(action, "delegate_week") == 0' in bridge
+assert 'owner_game_delegate_week_from_safe_point();' in bridge
+assert 'week_end[slot] = today_serial() + 7;' in native
+assert 'today_serial() >= week_end[slot]' in native
+assert 'week_finish(slot, manager, 1);' in native
+assert 'week_matches(slot, manager)' in native
+assert '"Manager runs 7 days"' in ui
+assert 'manager_week_status' in bridge and 'manager_week_status' in ui
+assert 'owner_game_delegate_week_from_safe_point' not in ui

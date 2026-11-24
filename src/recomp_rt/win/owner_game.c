@@ -198,6 +198,8 @@ static void write_state(void)
     int delegation_status = owner_game_delegation_status();
     extern int owner_game_delegated_match_completed(void);
     int delegated_match_completed = owner_game_delegated_match_completed();
+    extern int owner_game_week_status(void);
+    int week_status = owner_game_week_status();
     snprintf(text, sizeof text,
              "{\n"
              "  \"bridge_version\": \"0.4-poc\",\n"
@@ -213,13 +215,14 @@ static void write_state(void)
              "  \"controller_name\": \"%s\",\n"
              "  \"delegation_status\": %d,\n"
              "  \"delegated_match_completed\": %s,\n"
+             "  \"manager_week_status\": %d,\n"
              "  \"command\": \"inject_cash %016llx %d 5000000\"\n"
              "}\n",
              (unsigned long long)og_session,
              s.year, s.month, s.day, s.slot, s.club_id, s.club_name,
              (long long)s.balance, native_manager_id, native_manager_name,
              controller_name, delegation_status,
-             delegated_match_completed ? "true" : "false",
+             delegated_match_completed ? "true" : "false", week_status,
              (unsigned long long)og_session, s.club_id);
     replace_text_file("owner-game-state.json", text);
 }
@@ -308,9 +311,10 @@ static void process_command(void)
     int is_investment = strcmp(action, "inject_cash") == 0;
     int is_delegation = strcmp(action, "delegate_match") == 0;
     int is_cancel = strcmp(action, "cancel_delegation") == 0;
-    if ((!is_investment && !is_delegation && !is_cancel) ||
+    int is_week = strcmp(action, "delegate_week") == 0;
+    if ((!is_investment && !is_delegation && !is_cancel && !is_week) ||
         (is_investment && fields != 4) ||
-        ((is_delegation || is_cancel) && fields != 3)) {
+        ((is_delegation || is_cancel) && fields != 3) || (is_week && fields != 3)) {
         write_result("rejected", "invalid command", NULL, 0, 0, 0);
         return;
     }
@@ -326,6 +330,15 @@ static void process_command(void)
     }
     if (club_id != s.club_id) {
         write_result("rejected", "wrong club", &s, (int64_t)amount_ll, s.balance, s.balance);
+        return;
+    }
+    if (is_week) {
+        extern int owner_game_delegate_week_from_safe_point(void);
+        int result = owner_game_delegate_week_from_safe_point();
+        write_result(result == 1 ? "applied" : "rejected",
+                     result == 1 ? "native manager week started" :
+                     result == -2 ? "another delegation or holiday active" :
+                     "no valid human manager", &s, 0, s.balance, s.balance);
         return;
     }
     if (is_cancel) {

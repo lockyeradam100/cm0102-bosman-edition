@@ -55,7 +55,10 @@ def test(program, game, root):
         # A *fresh* career opens on 14 July, unlike the older smoke test's
         # prematch save. Explicitly continue it to the bid; don't click
         # Respond while still on the first news screen on 14 July.
-        "1500 click 45 115",            # Continue Game (115); 155 is MANAGER menu
+        "1500 click 45 115",            # Continue / next unread
+        "4000 click 45 115",
+        "7000 click 45 115",
+        "10000 click 45 115",
         "wait day:16.7.01",
         "500 click 172 230",            # Respond to real Henry bid
         "wait screen:0x8e9760",
